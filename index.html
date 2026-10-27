@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>3D 體態管理</title>
+<meta name="theme-color" content="#0f172a">
+<meta property="og:title" content="3D 體態管理 | 3D BODY COACH">
+<meta property="og:description" content="BMI、三圍、飲食、運動、體重趨勢，一個 3D 公仔帶你動起來！">
 <script src="https://cdn.tailwindcss.com/3.4.17"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <style>
@@ -15,6 +18,20 @@ input[type=number],select{outline:none}
 </style>
 </head>
 <body>
+<div id="cover" class="fixed inset-0 z-[100] flex flex-col items-center justify-center text-white overflow-hidden" style="background:linear-gradient(160deg,#0f172a 0%,#1e1b4b 55%,#4f46e5 100%);transition:opacity .5s,transform .5s;padding-top:env(safe-area-inset-top,0px)">
+<style>@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}@keyframes pulse2{0%,100%{box-shadow:0 0 0 0 rgba(249,115,22,.6)}50%{box-shadow:0 0 0 14px rgba(249,115,22,0)}}</style>
+<div class="absolute inset-0 opacity-20" style="background:repeating-linear-gradient(-55deg,transparent 0 28px,#f97316 28px 36px)"></div>
+<div class="absolute -right-10 -top-10 w-56 h-56 rounded-full bg-orange-500/30 blur-3xl"></div>
+<div class="absolute -left-16 bottom-10 w-64 h-64 rounded-full bg-indigo-400/30 blur-3xl"></div>
+<div class="relative flex flex-col items-center px-8 text-center">
+<div class="text-7xl mb-4" style="animation:bob 1.2s ease-in-out infinite">🏃</div>
+<div class="text-xs font-black tracking-[.4em] text-orange-400 mb-2">3D BODY COACH</div>
+<h1 class="text-5xl font-black italic leading-tight" style="transform:skew(-6deg)">3D 體態<br><span class="text-orange-400">管理</span></h1>
+<p class="mt-4 text-sm font-bold text-slate-300">BMI · 三圍 · 飲食 · 運動 · 趨勢追蹤</p>
+<div class="flex gap-2 mt-6 text-[11px] font-black italic"><span class="px-3 py-1 rounded-full bg-white/10 border border-white/20">💪 塑形</span><span class="px-3 py-1 rounded-full bg-white/10 border border-white/20">🔥 燃脂</span><span class="px-3 py-1 rounded-full bg-white/10 border border-white/20">⚡ 健康</span></div>
+<button onclick="var c=document.getElementById('cover');c.style.opacity=0;c.style.transform='scale(1.06)';c.style.pointerEvents='none';setTimeout(function(){c.remove()},500)" class="mt-10 bg-orange-500 active:scale-95 text-white text-lg font-black italic tracking-wider px-12 py-4 rounded-2xl" style="transform:skew(-6deg);animation:pulse2 1.8s infinite">開始訓練 ▶</button>
+<p class="mt-5 text-[11px] text-slate-400">動起來，雕塑更好的自己</p>
+</div></div>
 <div class="h-full w-full flex flex-col overflow-hidden">
   <div id="stage" class="relative shrink-0 bg-gradient-to-b from-slate-100 to-slate-50" style="height:46%;min-height:260px">
     <div id="pal" class="absolute top-3 left-3 z-10 bg-white/70 backdrop-blur p-2 rounded-2xl shadow-sm flex flex-col gap-2"></div>
