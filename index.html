@@ -55,6 +55,22 @@ input[type=number],select{outline:none}
 
       <!-- 資料 -->
       <div id="t-data" class="tab on space-y-4">
+        <div class="bg-gradient-to-r from-slate-900 to-indigo-900 text-white p-4 rounded-2xl space-y-2.5">
+          <div class="flex items-center justify-between gap-2"><div class="text-sm font-black">☁️ 雲端儲存</div><div id="cMsg" class="text-[11px] text-emerald-300 font-bold text-right"></div></div>
+          <div id="cloudIn" class="space-y-2">
+            <div class="flex gap-2"><input id="phone" type="tel" inputmode="numeric" maxlength="10" placeholder="手機號碼 09xxxxxxxx" class="flex-1 min-w-0 bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-sm font-bold placeholder-slate-400"><button onclick="cloudLogin()" class="bg-orange-500 active:scale-95 text-white text-sm font-black px-4 rounded-xl shrink-0">載入／儲存</button></div>
+            <label class="flex items-start gap-2 text-[11px] text-slate-300"><input id="agree" type="checkbox" class="mt-0.5"><span>我已閱讀並同意下方「資料使用說明」</span></label>
+          </div>
+          <div id="cloudOn" class="hidden"><div class="flex items-center justify-between gap-2 text-xs"><span>已登入 <b id="cMask"></b> · 自動儲存中</span><span class="flex gap-2 shrink-0"><button onclick="cloudOut()" class="bg-white/15 px-2.5 py-1 rounded-lg font-bold">登出</button><button onclick="cloudDel()" class="bg-red-500/80 px-2.5 py-1 rounded-lg font-bold">刪除我的資料</button></span></div></div>
+          <details class="text-[11px] text-slate-300"><summary class="cursor-pointer font-bold text-slate-200">📄 資料使用說明</summary>
+            <ul class="mt-2 space-y-1 list-disc pl-4 leading-relaxed">
+              <li><b>蒐集項目</b>：手機號碼（經雜湊轉換後儲存，不保存明碼）、身高、體重、年齡、性別、三圍、體重紀錄與偏好設定。</li>
+              <li><b>使用目的</b>：僅用於讓你在不同裝置還原個人資料，不作行銷、不出售、不提供第三方。</li>
+              <li><b>保存方式</b>：儲存於 Google Firebase 雲端，可隨時按「刪除我的資料」永久刪除。</li>
+              <li><b>風險提醒</b>：本服務不設密碼，知道你手機號碼的人可能讀取或修改你的資料。請勿輸入不想被他人看到的資訊，如有疑慮請勿使用雲端儲存（不登入仍可正常使用，資料只存在本機）。</li>
+              <li><b>免責聲明</b>：本 app 的 BMI、熱量與飲食運動建議僅供參考，不是醫療建議。</li>
+            </ul></details>
+        </div>
         <div class="grid grid-cols-2 gap-3">
           <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
             <label class="text-xs font-bold text-slate-500">身高 (cm)</label>
@@ -330,6 +346,62 @@ cv.addEventListener('pointerup',()=>{drag=false;if(!moved&&!S.anim){S.anim=true;
 
 resize();drawScreen();build();refresh();
 new ResizeObserver(resize).observe(mount);
+</script>
+<script>
+/* ===== 雲端儲存 (Firebase Firestore REST) ===== */
+const CLOUD={projectId:'isjsqw-775a2',apiKey:'AIzaSyDdYaS2vfRxoAh4j1sXXAvrF4R6M5ValXM'};
+const cloudOn=()=>!!(CLOUD.projectId&&CLOUD.apiKey);
+let U=null,lastSnap='',busy=false;
+const docUrl=id=>`https://firestore.googleapis.com/v1/projects/${CLOUD.projectId}/databases/(default)/documents/profiles/${id}?key=${CLOUD.apiKey}`;
+const cmsg=t=>{$('cMsg').textContent=t};
+async function sha(p){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('3dhealth:'+p));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
+function snap(){return JSON.stringify({h:S.h,w:S.w,age:S.age,c:S.c,wa:S.wa,hi:S.hi,g:S.g,shape:S.shape,shapeMode:S.shapeMode,act:S.act,diet:S.diet,color:S.color,rec:S.rec})}
+function applyData(d){
+  ['h','w','age','c','wa','hi'].forEach(k=>{const v=+d[k];S[k]=isFinite(v)&&v>0&&v<1000?v:0});
+  S.act=[1.2,1.375,1.55,1.725].includes(+d.act)?+d.act:1.2;
+  S.g=d.g==='male'?'male':'female';
+  S.shape=SHAPES.some(s=>s[0]===d.shape)?d.shape:'apple';
+  S.shapeMode=d.shapeMode==='auto'?'auto':'manual';
+  S.diet=['standard','vegetarian','fasting168'].includes(d.diet)?d.diet:'standard';
+  if(COLORS.includes(d.color))S.color=d.color;
+  S.rec=(Array.isArray(d.rec)?d.rec:[]).slice(-200).filter(r=>r&&isFinite(+r.weight)).map(r=>({id:+r.id||Date.now(),time:String(r.time||'').replace(/[^0-9:]/g,'').slice(0,8),weight:+r.weight,bmi:+r.bmi||0}));
+  document.querySelectorAll('[data-k]').forEach(el=>{const v=S[el.dataset.k];el.value=el.type==='range'?(v||el.dataset.d):(v||'')});
+  $('gender').value=S.g;$('act').value=String(S.act);
+  paintPal();paintShapes();refresh();save();
+  if(S.tab==='trend')renderTrend();if(S.tab==='plan')renderPlan()}
+function renderCloud(){
+  $('cloudIn').classList.toggle('hidden',!!U);$('cloudOn').classList.toggle('hidden',!U);
+  if(U)$('cMask').textContent=U.mask;
+  if(!cloudOn()&&!U)cmsg('雲端功能尚未啟用')}
+async function push(){
+  if(!U)return;busy=true;
+  try{const r=await fetch(docUrl(U.id),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({fields:{data:{stringValue:snap()}}})});
+    if(!r.ok)throw 0;const n=new Date(),p=x=>String(x).padStart(2,'0');cmsg(`✅ 已儲存 ${p(n.getHours())}:${p(n.getMinutes())}`)}
+  catch(e){cmsg('⚠️ 儲存失敗，稍後重試');lastSnap=''}
+  busy=false}
+async function pull(id,mask,isNew){
+  const r=await fetch(docUrl(id));if(!r.ok&&r.status!==404)throw new Error('HTTP '+r.status);
+  if(r.status===404){U={id,mask};lastSnap=snap();await push();cmsg('✅ 新帳號，已開始自動儲存');return}
+  if(!r.ok)throw 0;
+  const j=await r.json(),d=JSON.parse(j.fields.data.stringValue);
+  U={id,mask};applyData(d);lastSnap=snap();cmsg('✅ 已載入你的資料')}
+async function cloudLogin(){
+  const ph=$('phone').value.replace(/\D/g,'');
+  if(!cloudOn()){cmsg('雲端功能尚未啟用');return}
+  if(!$('agree').checked){cmsg('請先勾選同意資料使用說明');return}
+  if(!/^09\d{8}$/.test(ph)){cmsg('請輸入 09 開頭共 10 碼的手機號碼');return}
+  cmsg('載入中…');
+  try{const id=await sha(ph),mask=ph.slice(0,4)+'***'+ph.slice(-3);await pull(id,mask);
+    try{localStorage.setItem('hcloud',JSON.stringify({id,mask}))}catch(e){}}
+  catch(e){U=null;cmsg('⚠️ 連線失敗：'+((e&&e.message)||'未知錯誤'))}
+  renderCloud()}
+function cloudOut(){U=null;try{localStorage.removeItem('hcloud')}catch(e){}cmsg('已登出');renderCloud()}
+async function cloudDel(){
+  if(!U||!confirm('確定永久刪除雲端上的你的資料嗎？此動作無法復原。'))return;
+  try{const r=await fetch(docUrl(U.id),{method:'DELETE'});if(!r.ok)throw 0;cloudOut();cmsg('✅ 雲端資料已刪除')}
+  catch(e){cmsg('⚠️ 刪除失敗，請稍後再試')}}
+setInterval(()=>{if(U&&!busy){const s=snap();if(s!==lastSnap){lastSnap=s;push()}}},2500);
+(async()=>{try{const s=JSON.parse(localStorage.getItem('hcloud')||'null');if(s&&s.id&&cloudOn()){$('agree').checked=true;cmsg('載入中…');await pull(s.id,String(s.mask||''))}}catch(e){U=null;cmsg('⚠️ 連線失敗')}renderCloud()})();
 </script>
 </body>
 </html>
