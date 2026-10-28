@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>3D 體態管理</title>
+<meta name="theme-color" content="#0f172a">
+<meta property="og:title" content="3D 體態管理 | 3D BODY COACH">
+<meta property="og:description" content="BMI、三圍、飲食、運動、體重趨勢，一個 3D 公仔帶你動起來！">
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px)}
+html,body{height:100%;margin:0;background:#f8fafc;color:#1e293b;font-family:system-ui,-apple-system,"PingFang TC","Noto Sans TC",sans-serif}
+canvas{display:block;touch-action:pan-y}
+.tab{display:none}.tab.on{display:block}
+input[type=number],select{outline:none}
+</style>
+</head>
+<body>
+<div id="cover" class="fixed inset-0 z-[100] flex flex-col items-center justify-center text-white overflow-hidden" style="background:linear-gradient(160deg,#0f172a 0%,#1e1b4b 55%,#4f46e5 100%);transition:opacity .5s,transform .5s;padding-top:env(safe-area-inset-top,0px)">
+<style>@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}@keyframes pulse2{0%,100%{box-shadow:0 0 0 0 rgba(249,115,22,.6)}50%{box-shadow:0 0 0 14px rgba(249,115,22,0)}}</style>
+<div class="absolute inset-0 opacity-20" style="background:repeating-linear-gradient(-55deg,transparent 0 28px,#f97316 28px 36px)"></div>
+<div class="absolute -right-10 -top-10 w-56 h-56 rounded-full bg-orange-500/30 blur-3xl"></div>
+<div class="absolute -left-16 bottom-10 w-64 h-64 rounded-full bg-indigo-400/30 blur-3xl"></div>
+<div class="relative flex flex-col items-center px-8 text-center">
+<div class="text-7xl mb-4" style="animation:bob 1.2s ease-in-out infinite">🏃</div>
+<div class="text-xs font-black tracking-[.4em] text-orange-400 mb-2">3D BODY COACH</div>
+<h1 class="text-5xl font-black italic leading-tight" style="transform:skew(-6deg)">3D 體態<br><span class="text-orange-400">管理</span></h1>
+<p class="mt-4 text-sm font-bold text-slate-300">BMI · 三圍 · 飲食 · 運動 · 趨勢追蹤</p>
+<div class="flex gap-2 mt-6 text-[11px] font-black italic"><span class="px-3 py-1 rounded-full bg-white/10 border border-white/20">💪 塑形</span><span class="px-3 py-1 rounded-full bg-white/10 border border-white/20">🔥 燃脂</span><span class="px-3 py-1 rounded-full bg-white/10 border border-white/20">⚡ 健康</span></div>
+<button onclick="var c=document.getElementById('cover');c.style.opacity=0;c.style.transform='scale(1.06)';c.style.pointerEvents='none';setTimeout(function(){c.remove()},500)" class="mt-10 bg-orange-500 active:scale-95 text-white text-lg font-black italic tracking-wider px-12 py-4 rounded-2xl" style="transform:skew(-6deg);animation:pulse2 1.8s infinite">開始訓練 ▶</button>
+<p class="mt-5 text-[11px] text-slate-400">動起來，雕塑更好的自己</p>
+</div></div>
+<div class="h-full w-full flex flex-col overflow-hidden">
+  <div id="stage" class="relative shrink-0 bg-gradient-to-b from-slate-100 to-slate-50" style="height:46%;min-height:260px">
+    <div id="pal" class="absolute top-3 left-3 z-10 bg-white/70 backdrop-blur p-2 rounded-2xl shadow-sm flex flex-col gap-2"></div>
+    <div class="absolute top-3 right-3 z-10 flex flex-col gap-2 items-end pointer-events-none">
+      <div class="bg-white/85 backdrop-blur p-3 rounded-2xl shadow-sm flex flex-col items-center min-w-[105px]">
+        <div class="text-[11px] font-bold text-slate-400">BMI 指數</div>
+        <div id="bmiV" class="text-2xl font-black">--</div>
+        <div id="bmiS" class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-200 text-slate-500">等待輸入</div>
+      </div>
+      <div id="ideal" class="hidden bg-emerald-500/95 px-3 py-1.5 rounded-xl text-white text-center"><div class="text-[10px] text-emerald-100">建議體重範圍</div><div id="idealV" class="text-xs font-black"></div></div>
+      <div id="bubble" class="hidden bg-white px-3 py-1.5 rounded-xl shadow-lg text-xs font-bold animate-bounce"></div>
+    </div>
+    <div class="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 pointer-events-none bg-slate-800/40 text-white text-[10px] px-3 py-1 rounded-full whitespace-nowrap">↔ 左右拖曳旋轉 · 點擊公仔互動</div>
+    <div id="toast" class="hidden absolute top-3 left-1/2 -translate-x-1/2 z-30 bg-slate-900/90 text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg whitespace-nowrap"></div>
+    <div id="mount" class="w-full h-full"></div>
+  </div>
+
+  <div class="flex-1 bg-white rounded-t-3xl shadow-[0_-8px_30px_rgba(0,0,0,0.06)] relative z-20 flex flex-col overflow-hidden">
+    <div class="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mt-2.5 mb-1 shrink-0"></div>
+    <div class="flex-1 overflow-y-auto px-5 pt-3" style="padding-bottom:110px">
+
+      <!-- 資料 -->
+      <div id="t-data" class="tab on space-y-4">
+        <div class="bg-gradient-to-r from-slate-900 to-indigo-900 text-white p-4 rounded-2xl space-y-2.5">
+          <div class="flex items-center justify-between gap-2"><div class="text-sm font-black">☁️ 雲端儲存</div><div id="cMsg" class="text-[11px] text-emerald-300 font-bold text-right"></div></div>
+          <div id="cloudIn" class="space-y-2">
+            <div class="flex gap-2"><input id="phone" type="tel" inputmode="numeric" maxlength="10" placeholder="手機號碼 09xxxxxxxx" class="flex-1 min-w-0 bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-sm font-bold placeholder-slate-400"><button onclick="cloudLogin()" class="bg-orange-500 active:scale-95 text-white text-sm font-black px-4 rounded-xl shrink-0">載入／儲存</button></div>
+            <label class="flex items-start gap-2 text-[11px] text-slate-300"><input id="agree" type="checkbox" class="mt-0.5"><span>我已閱讀並同意下方「資料使用說明」</span></label>
+          </div>
+          <div id="cloudOn" class="hidden"><div class="flex items-center justify-between gap-2 text-xs"><span>已登入 <b id="cMask"></b> · 自動儲存中</span><span class="flex gap-2 shrink-0"><button onclick="cloudOut()" class="bg-white/15 px-2.5 py-1 rounded-lg font-bold">登出</button><button onclick="cloudDel()" class="bg-red-500/80 px-2.5 py-1 rounded-lg font-bold">刪除我的資料</button></span></div></div>
+          <details class="text-[11px] text-slate-300"><summary class="cursor-pointer font-bold text-slate-200">📄 資料使用說明</summary>
+            <ul class="mt-2 space-y-1 list-disc pl-4 leading-relaxed">
+              <li><b>蒐集項目</b>：手機號碼（經雜湊轉換後儲存，不保存明碼）、身高、體重、年齡、性別、三圍、體重紀錄與偏好設定。</li>
+              <li><b>使用目的</b>：僅用於讓你在不同裝置還原個人資料，不作行銷、不出售、不提供第三方。</li>
+              <li><b>保存方式</b>：儲存於 Google Firebase 雲端，可隨時按「刪除我的資料」永久刪除。</li>
+              <li><b>風險提醒</b>：本服務不設密碼，知道你手機號碼的人可能讀取或修改你的資料。請勿輸入不想被他人看到的資訊，如有疑慮請勿使用雲端儲存（不登入仍可正常使用，資料只存在本機）。</li>
+              <li><b>免責聲明</b>：本 app 的 BMI、熱量與飲食運動建議僅供參考，不是醫療建議。</li>
+            </ul></details>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+            <label class="text-xs font-bold text-slate-500">身高 (cm)</label>
+            <input data-k="h" data-d="165" type="number" placeholder="等待輸入" class="w-full bg-transparent text-2xl font-black mb-2">
+            <input data-k="h" data-d="165" type="range" min="130" max="210" step="0.5" class="w-full accent-indigo-600">
+          </div>
+          <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+            <div class="flex justify-between items-center"><label class="text-xs font-bold text-slate-500">體重 (kg)</label>
+              <button onclick="addRec()" class="bg-indigo-600 active:scale-95 text-white text-[11px] font-bold px-2 py-1 rounded-lg">＋記錄</button></div>
+            <input data-k="w" data-d="60" type="number" placeholder="等待輸入" class="w-full bg-transparent text-2xl font-black mb-2">
+            <input data-k="w" data-d="60" type="range" min="30" max="150" step="0.5" class="w-full accent-indigo-600">
+          </div>
+          <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+            <label class="text-xs font-bold text-slate-500 block mb-1">年齡 (歲)</label>
+            <input data-k="age" type="number" placeholder="等待輸入" class="w-full bg-transparent text-xl font-bold">
+          </div>
+          <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+            <label class="text-xs font-bold text-slate-500 block mb-1">生理性別</label>
+            <select id="gender" class="w-full bg-transparent text-lg font-bold"><option value="female">女生 (含蝴蝶結)</option><option value="male">男生</option></select>
+          </div>
+        </div>
+        <div class="hidden">
+          <div class="flex items-center justify-between">
+            
+            
+          </div>
+          
+          
+        </div>
+        <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+          <label class="text-xs font-bold text-slate-500 mb-2 block">日常活動量</label>
+          <select id="act" class="w-full bg-white p-3 rounded-xl border border-slate-200 text-sm font-bold">
+            <option value="1.2">久坐 (幾乎不運動)</option><option value="1.375">輕度 (每週 1-3 天)</option>
+            <option value="1.55">中度 (每週 3-5 天)</option><option value="1.725">高度 (每週 6-7 天)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 身型 -->
+      <div id="t-shape" class="tab space-y-4">
+        <div class="flex items-center justify-between"><div id="modeSw" class="flex bg-slate-100 p-1 rounded-xl w-full"><button data-m="manual">👆 自己選擇</button><button data-m="auto">🧮 三圍自動算</button></div>
+          </div>
+        <div id="autoBox" class="hidden bg-slate-50 p-3.5 rounded-2xl border border-slate-100 space-y-2"><div class="text-xs font-bold text-slate-600">輸入三圍 (胸 / 腰 / 臀 cm)</div><div class="grid grid-cols-3 gap-2"><div class="bg-white p-2.5 rounded-xl border border-slate-200"><label class="text-[11px] font-bold text-slate-400 block">胸圍</label><input data-k="c" data-d="88" type="number" placeholder="88" class="w-full bg-transparent text-lg font-black mb-1"><input data-k="c" data-d="88" type="range" min="60" max="130" class="w-full accent-indigo-600"></div><div class="bg-white p-2.5 rounded-xl border border-slate-200"><label class="text-[11px] font-bold text-slate-400 block">腰圍</label><input data-k="wa" data-d="70" type="number" placeholder="70" class="w-full bg-transparent text-lg font-black mb-1"><input data-k="wa" data-d="70" type="range" min="50" max="120" class="w-full accent-indigo-600"></div><div class="bg-white p-2.5 rounded-xl border border-slate-200"><label class="text-[11px] font-bold text-slate-400 block">臀圍</label><input data-k="hi" data-d="92" type="number" placeholder="92" class="w-full bg-transparent text-lg font-black mb-1"><input data-k="hi" data-d="92" type="range" min="65" max="135" class="w-full accent-indigo-600"></div></div><div id="autoMsg" class="text-xs text-slate-500"></div><div id="whr" class="hidden flex items-center justify-between bg-indigo-50/70 px-3 py-2 rounded-xl text-xs"></div></div>
+        <div id="shapes" class="grid grid-cols-2 gap-3"></div>
+      </div>
+
+      <!-- 計畫 -->
+      <div id="t-plan" class="tab space-y-4">
+        <div class="bg-gradient-to-r from-indigo-50 to-purple-50 p-3.5 rounded-2xl border border-indigo-100 flex items-center gap-3">
+          <div class="text-xl">💡</div><div id="slogan" class="text-sm font-black text-indigo-700"></div></div>
+        <div id="meta"></div>
+        <div class="flex items-center justify-between">
+          <h3 class="text-base font-black">🍽 一週飲食</h3>
+          <div id="dietSw" class="flex bg-slate-100 p-1 rounded-lg"></div>
+        </div>
+        <div id="diet" class="bg-orange-50 rounded-2xl p-4 space-y-3"></div>
+        <h3 class="text-base font-black flex items-center justify-between pt-2"><span>🏃 一週運動</span><span id="wkTag" class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700"></span></h3>
+        <div id="work" class="bg-blue-50 rounded-2xl p-4 space-y-3"></div>
+      </div>
+
+      <!-- 趨勢 -->
+      <div id="t-trend" class="tab space-y-4">
+        <div class="flex items-center justify-between">
+          <div><h2 class="text-base font-black">體重趨勢</h2><p class="text-xs text-slate-400">每次記錄新增一個時間點</p></div>
+          <div class="flex gap-2">
+            <button onclick="S.rec=[];save();renderTrend()" class="p-2 text-slate-500 bg-slate-100 rounded-xl text-xs font-bold">清空</button>
+            <button onclick="addRec()" class="bg-indigo-600 active:scale-95 text-white text-xs font-bold px-3 py-2 rounded-xl">＋ 記錄體重</button>
+          </div>
+        </div>
+        <div id="chart" class="bg-slate-50 p-4 rounded-2xl border border-slate-100"></div>
+        <div id="hist" class="space-y-2"></div>
+      </div>
+    </div>
+
+    <div class="absolute bottom-0 w-full bg-white/95 backdrop-blur border-t border-slate-100 flex justify-around p-2.5 z-30" id="nav" style="padding-bottom:calc(1.1rem + env(safe-area-inset-bottom,0px))"></div>
+  </div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const COLORS=['#4f46e5','#ec4899','#10b981','#f97316','#1f2937'];
+const SLOGANS=["汗水是脂肪哭泣的眼淚，繼續加油！","今天的努力，是為了明天更美的自己。","別放棄，你的潛力比你想像的還要大！","好身材不是天生，是你的自律給的。","每一次運動，都在重新雕塑你的未來。","管住嘴，邁開腿，完美體態在向你招手！","慢慢來比較快，堅持才是最後的贏家。","將健康變成習慣，而不是短暫的目標。","就算只進步一點點，也比站在原地好。","現在放棄的話，比賽就結束了喔！"];
+const DAYS=['一','二','三','四','五','六','日'];
+const DIET=[
+'早餐：燕麥片加無糖豆漿\n午餐：烤雞胸肉配糙米飯與燙青菜\n晚餐：鮭魚沙拉配和風醬',
+'早餐：全麥吐司夾水煮蛋\n午餐：清蒸魚片配地瓜與綠花椰菜\n晚餐：豆腐蔬菜湯配毛豆',
+'早餐：希臘優格加綜合堅果\n午餐：蒜泥白肉(瘦肉)配藜麥飯與高麗菜\n晚餐：雞肉酪梨溫沙拉',
+'早餐：地瓜一顆配無糖豆漿\n午餐：滷雞腿(去皮)配五穀飯與燙菠菜\n晚餐：鮮蝦豆腐煲配炒時蔬',
+'早餐：蔬菜起司蛋餅(少油)\n午餐：香煎鮭魚配紫米飯與蘆筍\n晚餐：瘦牛肉片蔬菜湯',
+'早餐：酪梨水煮蛋全麥吐司\n午餐：迷迭香烤雞胸配烤南瓜\n晚餐：清蒸蛤蜊絲瓜配板豆腐',
+'早餐：奇亞籽燕麥優格碗配藍莓\n午餐：乾煎鯛魚片配糙米飯與炒木耳\n晚餐：雞絲涼拌小黃瓜配海帶芽湯'];
+const WORK={
+apple:['全身 HIIT 燃脂 (20分) + 核心捲腹 3組','快走或超慢跑 (45分) + 死蟲式','登山者式 4組 + 棒式 60秒','恢復：筋膜放鬆與瑜珈 (30分)','波比跳 (15分) + 俄羅斯轉體 4組','慢跑或游泳 (50分) + 側棒式','休息：飯後散步 30分'],
+pear:['徒手深蹲 4x15 + 分腿蹲 每側12','飛輪或快走 (40分) + 臀腿拉筋','相撲深蹲 4組 + 側臥抬腿 20下','恢復：下肢滾筒與瑜珈 (30分)','臀橋 4x20 + 階梯有氧 (30分)','後腳抬高蹲 3組 + 開合跳 (20分)','休息：泡腳與腿部按摩'],
+hourglass:['全身循環訓練 (30分) + 棒式 3組','慢跑或有氧舞蹈 (40分)','啞鈴深蹲推舉 4組 + 伏地挺身 3組','恢復：皮拉提斯 (30分)','HIIT (20分) + 臀橋 3組','游泳或騎車 (45分)','休息：全身伸展與深呼吸'],
+rectangle:['深蹲 + 彈力帶側走 4組','快走 (35分) + 側腹捲腹 4組','彈力帶划船 + 側平舉 4組','恢復：瑜珈體態雕塑 (30分)','保加利亞分腿蹲 3組 + 俄羅斯轉體 4組','全身燃脂操 (35分) + 平板支撐','休息：散步 30分與筋膜放鬆'],
+maintain:['快走或慢跑 30分','核心喚醒：死蟲式+鳥狗式+棒式 (20分)','瑜珈或皮拉提斯 (40分)','恢復：散步 6000步 + 肩頸伸展','彈力帶或輕啞鈴全身 (30分)','騎單車、健行或游泳 (45分)','休息：全身滾筒按摩']};
+const SHAPES=[['apple','🍎 蘋果型','脂肪集中於腹部與上半身'],['pear','🍐 梨型','脂肪集中於臀部與大腿'],['hourglass','⏳ 沙漏型','胸臀豐滿、腰線明顯'],['rectangle','📏 直筒型','上下身均勻、腰線較平']];
+
+const S={h:0,w:0,age:0,c:0,wa:0,hi:0,g:'female',shape:'apple',act:1.2,diet:'standard',rec:[],shapeMode:'manual',color:COLORS[0],anim:false,tab:'data'};
+try{const r=JSON.parse(localStorage.getItem('hrec')||'[]');if(Array.isArray(r))S.rec=r}catch(e){}
+function save(){try{localStorage.setItem('hrec',JSON.stringify(S.rec))}catch(e){}}
+function toast(t){const e=$('toast');e.textContent=t;e.classList.remove('hidden');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.add('hidden'),2500)}
+
+// ---------- UI 組裝 ----------
+$('pal').innerHTML=COLORS.map(c=>`<button data-c="${c}" class="w-6 h-6 rounded-full border-2 border-transparent" style="background:${c}"></button>`).join('');
+$('pal').onclick=e=>{const c=e.target.dataset.c;if(c){S.color=c;paintPal();build()}};
+function paintPal(){document.querySelectorAll('#pal button').forEach(b=>{b.style.borderColor=b.dataset.c===S.color?'#1e293b':'transparent';b.style.transform=b.dataset.c===S.color?'scale(1.1)':''})}
+paintPal();
+void [['c','胸圍',88,60,130],['wa','腰圍',70,50,120],['hi','臀圍',92,65,135]].map(([k,l,d,mn,mx])=>`<div class="bg-white p-2.5 rounded-xl border border-slate-200"><label class="text-[11px] font-bold text-slate-400 block">${l}</label><input data-k="${k}" data-d="${d}" type="number" placeholder="${d}" class="w-full bg-transparent text-lg font-black mb-1"><input data-k="${k}" data-d="${d}" type="range" min="${mn}" max="${mx}" class="w-full accent-indigo-600"></div>`).join('');
+$('shapes').innerHTML=SHAPES.map(s=>`<button data-s="${s[0]}" class="p-4 rounded-2xl text-left transition-all"><div class="font-bold mb-1">${s[1]}</div><div class="text-xs">${s[2]}</div></button>`).join('');
+$('shapes').onclick=e=>{const b=e.target.closest('button');if(b&&S.shapeMode==='manual'){S.shape=b.dataset.s;paintShapes();build()}};
+function paintShapes(){const auto=S.shapeMode==='auto';
+ document.querySelectorAll('#modeSw button').forEach(b=>{const on=b.dataset.m===S.shapeMode;b.className='flex-1 py-2 text-xs font-bold rounded-lg '+(on?'bg-white text-indigo-600 shadow-sm':'text-slate-400')});
+ $('autoBox').classList.toggle('hidden',!auto);
+ document.querySelectorAll('#shapes button').forEach(b=>{const on=b.dataset.s===S.shape;b.className='p-4 rounded-2xl text-left transition-all '+(on?'bg-indigo-600 text-white shadow-md':'bg-slate-50 text-slate-600')+(auto&&!on?' opacity-40':'')+(auto?' cursor-default':'');b.lastChild.className='text-xs '+(on?'text-indigo-200':'text-slate-400')});
+ if(auto){const ok=S.c>0&&S.wa>0&&S.hi>0;$('autoMsg').textContent=ok?'✅ 已依三圍自動判定為：'+SHAPES.find(s=>s[0]===S.shape)[1]:'請輸入完整的胸、腰、臀圍，系統會自動判定'}}
+paintShapes();
+$('dietSw').innerHTML=[['standard','均衡'],['vegetarian','🌿素食'],['fasting168','⏱168']].map(([k,l])=>`<button data-d="${k}" class="px-2 py-1 text-xs font-bold rounded-md">${l}</button>`).join('');
+$('dietSw').onclick=e=>{const d=e.target.dataset.d;if(d){S.diet=d;renderPlan()}};
+const TABS=[['data','🏠','資料'],['shape','ℹ️','身型'],['plan','📅','計畫'],['trend','📈','趨勢']];
+$('nav').innerHTML=TABS.map(t=>`<button data-t="${t[0]}" class="flex flex-col items-center gap-0.5 w-16"><span class="text-lg">${t[1]}</span><span class="text-[10px] font-bold">${t[2]}</span></button>`).join('');
+$('nav').onclick=e=>{const b=e.target.closest('button');if(b)setTab(b.dataset.t)};
+function setTab(t){S.tab=t;document.querySelectorAll('.tab').forEach(e=>e.classList.toggle('on',e.id==='t-'+t));
+  document.querySelectorAll('#nav button').forEach(b=>{const on=b.dataset.t===t;b.className='flex flex-col items-center gap-0.5 w-16 '+(on?'text-indigo-600':'text-slate-400');b.style.opacity=on?1:.7});
+  if(t==='plan'){$('slogan').textContent=SLOGANS[Math.random()*SLOGANS.length|0];renderPlan()}
+  if(t==='trend')renderTrend()}
+setTab('data');
+
+// ---------- 輸入處理 ----------
+document.querySelectorAll('[data-k]').forEach(el=>el.addEventListener('input',()=>{
+  S[el.dataset.k]=parseFloat(el.value)||0;
+  document.querySelectorAll(`[data-k="${el.dataset.k}"]`).forEach(o=>{if(o!==el)o.value=o.type==='range'?(S[el.dataset.k]||o.dataset.d):el.value});
+  refresh()}));
+document.querySelectorAll('input[type=range]').forEach(r=>r.value=r.dataset.d);
+$('gender').onchange=e=>{S.g=e.target.value;refresh()};
+$('act').onchange=e=>{S.act=parseFloat(e.target.value);refresh()};
+
+function bmi(){return S.h>0&&S.w>0?S.w/Math.pow(S.h/100,2):0}
+function autoShape(){
+  const {c,wa,hi}=S;if(c<=0||wa<=0||hi<=0)return false;
+  const r=wa/hi;let d='rectangle';
+  if(r>=0.85||(wa>=c-2&&wa>=hi-2))d='apple';
+  else if(hi-c>=6&&wa<hi-15)d='pear';
+  else if(Math.abs(c-hi)<=7&&(c-wa>=18||hi-wa>=20))d='hourglass';
+  S.shape=d;return true}
+function setMode(m){S.shapeMode=m;refresh()}
+$('modeSw').onclick=e=>{const m=e.target.dataset.m;if(m)setMode(m)};
+function addRec(){
+  if(S.w<=0){toast('請先輸入有效的體重數值喔！');return}
+  const n=new Date(),p=x=>String(x).padStart(2,'0');
+  S.rec.push({id:Date.now(),time:`${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())}`,weight:+S.w.toFixed(1),bmi:+bmi().toFixed(1)});
+  save();toast(`已成功記錄 ${S.w.toFixed(1)} kg！`);if(S.tab==='trend')renderTrend()}
+
+function refresh(){if(S.shapeMode==='auto')autoShape();paintShapes();
+  const b=bmi();$('bmiV').textContent=b?b.toFixed(1):'--';
+  let st=['等待輸入','bg-slate-200 text-slate-500'];
+  if(b){st=b<18.5?['體重過輕','bg-blue-100 text-blue-700']:b<24?['健康標準','bg-emerald-100 text-emerald-700']:b<27?['輕度肥胖','bg-orange-100 text-orange-700']:['重度肥胖','bg-red-100 text-red-700']}
+  $('bmiS').textContent=st[0];$('bmiS').className='px-2 py-0.5 rounded-full text-[11px] font-bold '+st[1];
+  if(S.h>0){const m=S.h/100;$('ideal').classList.remove('hidden');$('idealV').textContent=`${(18.5*m*m).toFixed(1)} - ${(24*m*m).toFixed(1)} kg`}else $('ideal').classList.add('hidden');
+  const w=$('whr');
+  if(S.wa>0&&S.hi>0){const r=S.wa/S.hi,hi=(S.g==='female'&&r>0.85)||(S.g==='male'&&r>0.9);
+    w.classList.remove('hidden');w.innerHTML=`<span class="font-bold text-slate-600">腰臀比 (WHR)：<strong class="text-indigo-600">${r.toFixed(2)}</strong></span><span class="font-bold px-2 py-0.5 rounded-full text-[10px] ${hi?'bg-orange-100 text-orange-700':'bg-emerald-100 text-emerald-700'}">${hi?'⚠️ 腹部脂肪偏高':'✅ 理想比例'}</span>`}
+  else w.classList.add('hidden');
+  drawScreen();queueBuild();if(S.tab==='plan')renderPlan()}
+
+function menu(t){
+  if(S.diet==='vegetarian')return t.replace(/烤雞胸肉|蒜泥白肉\(瘦肉\)|滷雞腿\(去皮\)|迷迭香烤雞胸|雞肉|瘦牛肉片|雞絲/g,'香煎天貝').replace(/香煎鮭魚|鮭魚|清蒸魚片|乾煎鯛魚片|鮮蝦|清蒸蛤蜊|清蒸蛤蜊/g,'照燒杏鮑菇').replace(/水煮蛋/g,'豆腐');
+  if(S.diet==='fasting168')return t.replace('早餐：','12:00 第一餐：').replace('午餐：','15:00 輕食點心：').replace('晚餐：','19:00 第二餐：');
+  return t}
+function renderPlan(){
+  document.querySelectorAll('#dietSw button').forEach(b=>{const on=b.dataset.d===S.diet;b.className='px-2 py-1 text-xs font-bold rounded-md '+(on?'bg-white text-slate-800 shadow-sm':'text-slate-400')});
+  const b=bmi();
+  if(S.h>0&&S.w>0&&S.age>0){
+    const bmr=Math.round(10*S.w+6.25*S.h-5*S.age+(S.g==='male'?5:-161)),tdee=Math.round(bmr*S.act),
+    tc=b>=24?Math.max(1200,tdee-400):b<18.5?tdee+300:tdee;
+    $('meta').innerHTML=`<div class="bg-slate-900 text-white p-4 rounded-2xl space-y-3"><div class="flex justify-between border-b border-slate-800 pb-2.5"><div><div class="text-[10px] text-slate-400 font-bold">基礎代謝 (BMR)</div><div class="text-lg font-black">${bmr} <span class="text-xs font-normal text-slate-400">kcal</span></div></div><div class="text-right"><div class="text-[10px] text-slate-400 font-bold">每日消耗 (TDEE)</div><div class="text-lg font-black text-emerald-400">${tdee} <span class="text-xs font-normal text-slate-400">kcal</span></div></div></div><div class="text-xs text-slate-300">🎯 建議每日攝取 <span class="text-amber-400 font-black">${tc} 大卡</span></div><div class="grid grid-cols-3 gap-2 text-center">${[['🍗 蛋白質',Math.round(tc*.3/4),'text-rose-400'],['🍚 碳水',Math.round(tc*.4/4),'text-sky-400'],['🥑 油脂',Math.round(tc*.3/9),'text-amber-400']].map(x=>`<div class="bg-slate-800 p-2 rounded-xl"><div class="text-[10px] text-slate-400">${x[0]}</div><div class="text-sm font-black ${x[2]}">${x[1]}g</div></div>`).join('')}</div></div>`}
+  else $('meta').innerHTML='<div class="bg-slate-100 p-4 rounded-2xl text-center text-xs font-bold text-slate-500">請先在「資料」輸入身高、體重與年齡，解鎖熱量與營養素計算！</div>';
+  $('diet').innerHTML=DIET.map((f,i)=>`<div class="flex gap-3 ${i<6?'border-b border-orange-100 pb-3':''}"><div class="font-black text-orange-400 w-8 shrink-0">W${DAYS[i]}</div><div class="text-sm font-bold text-slate-700 whitespace-pre-line">${menu(f)}</div></div>`).join('');
+  const loss=b>23.5;$('wkTag').textContent=loss?'🔥 減脂菜單':'✨ 體態維持';
+  $('work').innerHTML=(loss?WORK[S.shape]:WORK.maintain).map((x,i)=>`<div class="flex gap-3 ${i<6?'border-b border-blue-100 pb-3':''}"><div class="font-black text-blue-400 w-8 shrink-0">W${DAYS[i]}</div><div class="text-sm font-bold text-slate-700">${x}</div></div>`).join('')}
+function renderTrend(){
+  const R=S.rec;
+  if(R.length<2)$('chart').innerHTML=`<div class="h-40 flex flex-col items-center justify-center text-center"><div class="text-2xl mb-2">📈</div><div class="text-sm font-bold text-slate-700 mb-1">目前 ${R.length} 筆，還差 ${2-R.length} 筆即可繪製折線圖</div><div class="text-xs text-slate-400">調整體重後點「記錄體重」新增點位</div></div>`;
+  else{
+    const ws=R.map(r=>r.weight),mn=Math.min(...ws)-1,mx=Math.max(...ws)+1,rg=Math.max(1,mx-mn),W=320,H=140,px=28,py=24;
+    const P=R.map((r,i)=>({x:px+i/(R.length-1)*(W-2*px),y:H-py-(r.weight-mn)/rg*(H-2*py),r}));
+    $('chart').innerHTML=`<svg viewBox="0 0 ${W} ${H}" class="w-full h-40 overflow-visible"><line x1="${px}" y1="${py}" x2="${W-px}" y2="${py}" stroke="#e2e8f0" stroke-dasharray="3 3"/><line x1="${px}" y1="${H-py}" x2="${W-px}" y2="${H-py}" stroke="#e2e8f0" stroke-dasharray="3 3"/><polyline fill="none" stroke="#4f46e5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" points="${P.map(p=>p.x+','+p.y).join(' ')}"/>${P.map((p,i)=>`<circle cx="${p.x}" cy="${p.y}" r="4.5" fill="#fff" stroke="#4f46e5" stroke-width="3"/><text x="${p.x}" y="${p.y-10}" text-anchor="middle" font-size="10" font-weight="bold" fill="#334155">${p.r.weight}</text>${(i==0||i==P.length-1||P.length<=5)?`<text x="${p.x}" y="${H-6}" text-anchor="middle" font-size="9" fill="#94a3b8">${p.r.time}</text>`:''}`).join('')}</svg>`}
+  $('hist').innerHTML=R.length?`<h3 class="text-xs font-bold text-slate-400">歷史明細 (${R.length})</h3>`+[...R].reverse().map(r=>`<div class="bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-100 flex justify-between items-center"><span class="text-xs font-bold text-slate-500">${r.time}</span><span class="flex items-center gap-3"><b class="text-sm font-black">${r.weight} kg</b>${r.bmi>0?`<span class="text-[11px] font-bold px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-md">BMI ${r.bmi}</span>`:''}</span></div>`).join(''):''}
+
+// ---------- 3D ----------
+const mount=$('mount');
+const scene=new THREE.Scene(),cam=new THREE.PerspectiveCamera(42,1,.1,100);
+cam.position.set(0,2.3,6.8);cam.lookAt(0,.5,0);
+const ren=new THREE.WebGLRenderer({antialias:true,alpha:true});
+ren.setPixelRatio(Math.min(devicePixelRatio,2));mount.appendChild(ren.domElement);
+scene.add(new THREE.AmbientLight(0xffffff,.85));
+const dl=new THREE.DirectionalLight(0xffffff,1.1);dl.position.set(5,8,6);scene.add(dl);
+const main=new THREE.Group();main.position.set(0,.35,0);scene.add(main);
+const base=new THREE.Group();base.position.set(0,-1.05,0);
+base.add(new THREE.Mesh(new THREE.BoxGeometry(2.4,.16,2.4),new THREE.MeshStandardMaterial({color:0xffffff,roughness:.15})));
+const pad=new THREE.Mesh(new THREE.BoxGeometry(2.2,.06,2.2),new THREE.MeshStandardMaterial({color:0x1e293b,roughness:.8}));pad.position.y=-.1;base.add(pad);
+const screenMat=new THREE.MeshBasicMaterial();
+const scr=new THREE.Mesh(new THREE.PlaneGeometry(1.1,.55),screenMat);scr.position.set(0,.082,.72);scr.rotation.x=-Math.PI/2;base.add(scr);
+main.add(base);
+const avatar=new THREE.Group();main.add(avatar);
+function drawScreen(){
+  const cv=document.createElement('canvas');cv.width=256;cv.height=128;const x=cv.getContext('2d');
+  x.fillStyle='#0f172a';x.fillRect(0,0,256,128);x.strokeStyle='#334155';x.lineWidth=6;x.strokeRect(3,3,250,122);
+  x.fillStyle='#4ade80';x.font='900 54px sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText(S.w>0?S.w.toFixed(1):'--.-',110,68);
+  x.fillStyle='#94a3b8';x.font='bold 24px sans-serif';x.fillText('kg',210,78);
+  if(screenMat.map)screenMat.map.dispose();screenMat.map=new THREE.CanvasTexture(cv);screenMat.needsUpdate=true}
+function resize(){const w=mount.clientWidth,h=mount.clientHeight;if(!w||!h)return;cam.aspect=w/h;cam.updateProjectionMatrix();ren.setSize(w,h)}
+addEventListener('resize',resize);
+
+let upd=()=>{};
+function disposeGroup(g){g.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material)o.material.dispose()});while(g.children.length)g.remove(g.children[0])}
+let bq=0;function queueBuild(){if(!bq)bq=requestAnimationFrame(()=>{bq=0;build()})}
+function build(){
+  disposeGroup(avatar);
+  const auto=S.shapeMode==='auto',nb=bmi(),sf=nb>0?Math.max(-.15,(nb-22)*.03):0,sh=S.shape,cl=n=>Math.min(1.7,Math.max(.7,n));
+  const sC=cl(1+(sh==='apple'||sh==='hourglass'?sf*.8:sf*.4)+(auto&&S.c>0?(S.c-88)*.006:0));
+  const sB=cl(1+(sh==='apple'?sf*1.5:sh==='pear'?sf*1.2:sf*.8)+(auto&&S.wa>0?(S.wa-70)*.008:0));
+  const sH=cl(1+(sh==='pear'||sh==='hourglass'?sf*1.5:sf*.6)+(auto&&S.hi>0?(S.hi-92)*.006:0));
+  const bad=S.anim&&(nb>=24||(nb>0&&nb<18.5));
+  const M=c=>new THREE.MeshStandardMaterial({color:c,roughness:.35});
+  const mt={skin:M(0xffdbac),blush:M(0xff9999),mask:M(0x111111),clothes:M(new THREE.Color(S.color)),white:M(0xffffff),black:new THREE.MeshBasicMaterial({color:0x1e293b}),eye:new THREE.MeshBasicMaterial({color:bad?0xef4444:S.anim?0xfacc15:0x4ade80})};
+  const sp=(r,m)=>new THREE.Mesh(new THREE.SphereGeometry(r,24,24),m);
+  const cy=(a,b,h,m)=>new THREE.Mesh(new THREE.CylinderGeometry(a,b,h,28),m);
+  const at=(o,x,y,z)=>{o.position.set(x,y,z);return o};
+  const model=new THREE.Group();model.position.y=-1;
+  const head=new THREE.Group();head.position.set(0,2.7,0);head.add(sp(.55,mt.skin));
+  [.25,-.25].forEach(x=>head.add(at(sp(.08,mt.blush),x,0,.48)));
+  head.add(at(new THREE.Mesh(new THREE.BoxGeometry(.8,.35,.3),mt.mask),0,.1,.45));
+  [-1,1].forEach(s=>{const e=at(new THREE.Mesh(new THREE.BoxGeometry(.06,.12,.02),mt.eye),s*.15,.1,.61);e.rotation.z=s*(bad?.4:0);head.add(e)});
+  if(S.g==='female'){const bow=new THREE.Group();bow.position.y=.55;bow.add(sp(.08,mt.clothes));
+    [-1,1].forEach(s=>{const w=at(new THREE.Mesh(new THREE.BoxGeometry(.25,.15,.1),mt.clothes),s*.15,.05,0);w.rotation.z=-s*.5;bow.add(w)});head.add(bow)}
+  model.add(head);
+  const ch=at(cy(.45,.5,.5,mt.clothes),0,2,0);ch.scale.set(sC,1,Math.min(sC,1.2));model.add(ch);
+  const bd=Math.min(sB,1.3),be=at(cy(.5,.55,.5,mt.clothes),0,1.5,0);be.scale.set(sB,1,bd);model.add(be);
+  const hp=at(cy(.55,.45,.5,mt.clothes),0,1,0);hp.scale.set(sH,1,Math.min(sH,1.2));model.add(hp);
+  const pk=new THREE.Group();pk.position.set(0,1.5,.53*bd);
+  pk.add(at(new THREE.Mesh(new THREE.BoxGeometry(.38,.025,.02),mt.black),0,.1,0));
+  const pb=at(new THREE.Mesh(new THREE.CylinderGeometry(.19,.19,.02,32,1,false,0,Math.PI),mt.white),0,.1,-.005);pb.rotation.set(Math.PI/2,Math.PI/2,0);pk.add(pb);model.add(pk);
+  const shX=.43*sC+.08,maxR=Math.max(.5*sC,.56*sB,.56*sH),nat=.22+Math.atan2(Math.max(0,maxR-shX)+.08,.7);
+  const arm=side=>{
+    const g=new THREE.Group();g.position.set(side*shX,2.16,0);g.add(sp(.155,mt.clothes));
+    g.add(at(cy(.15,.168,.28,mt.clothes),0,-.14,0));g.add(at(cy(.172,.172,.035,mt.white),0,-.27,0));
+    const fg=new THREE.Group();fg.position.y=-.26;fg.rotation.x=-.1;fg.add(at(cy(.12,.1,.38,mt.skin),0,-.19,0));
+    const hd=new THREE.Group();hd.position.y=-.42;
+    const pm=sp(.125,mt.skin);pm.scale.set(.95,1.08,.72);hd.add(pm);
+    const th=at(sp(.048,mt.skin),-side*.105,.01,.045);th.scale.set(.85,1.5,.85);th.rotation.set(.25,0,side*.55);hd.add(th);
+    for(let i=0;i<4;i++){const f=at(sp(.034,mt.skin),-side*(.066-i*.044),(i===1||i===2)?-.125:-.112,.01);f.scale.set(.88,1.65,.88);hd.add(f)}
+    fg.add(hd);g.add(fg);return g};
+  const aL=arm(1),aR=arm(-1);model.add(aL,aR);
+  [1,-1].forEach(s=>{const lg=new THREE.Group();lg.position.set(s*.25*sH,.6,0);lg.add(at(cy(.15,.15,.7,mt.skin),0,-.1,0));lg.add(at(new THREE.Mesh(new THREE.BoxGeometry(.22,.15,.38),mt.clothes),0,-.52,.08));model.add(lg)});
+  avatar.add(model);
+  const t0=Date.now();
+  upd=()=>{const t=(Date.now()-t0)/1e3;let a;
+    if(S.anim){if(bad){model.position.x=Math.sin(t*40)*.03;model.position.y=-1;a=nat+.35+Math.sin(t*25)*.12}
+      else{model.position.y=-1+Math.abs(Math.sin(t*6))*.4;a=2.55+Math.sin(t*12)*.22}}
+    else{model.position.y=-1+Math.sin(t*2)*.02;model.position.x=0;a=nat+Math.sin(t*2)*.035}
+    aL.rotation.z=a;aR.rotation.z=-a};
+  const nbb=nb;$('bubble').textContent=nbb>=24?'太胖了...跳不動🥵':'太瘦了...沒力氣🤕';$('bubble').classList.toggle('hidden',!bad)}
+
+// 旋轉與點擊 (只在畫布上判定)
+let rotY=0,drag=false,moved=false,lx=0;
+const cv=ren.domElement;
+cv.addEventListener('pointerdown',e=>{drag=true;moved=false;lx=e.clientX;cv.setPointerCapture(e.pointerId)});
+cv.addEventListener('pointermove',e=>{if(!drag)return;const d=e.clientX-lx;if(Math.abs(d)>2)moved=true;rotY+=d*.012;lx=e.clientX});
+cv.addEventListener('pointerup',()=>{drag=false;if(!moved&&!S.anim){S.anim=true;build();setTimeout(()=>{S.anim=false;build()},2000)}});
+(function loop(){requestAnimationFrame(loop);main.rotation.y+=(rotY-main.rotation.y)*.1;upd();ren.render(scene,cam)})();
+
+resize();drawScreen();build();refresh();
+new ResizeObserver(resize).observe(mount);
+</script>
+<script>
+/* ===== 雲端儲存 (Firebase Firestore REST) ===== */
+const CLOUD={projectId:'isjsqw-775a2',apiKey:'AIzaSyDdYaS2vfRxoAh4j1sXXAvrF4R6M5ValXM'};
+const cloudOn=()=>!!(CLOUD.projectId&&CLOUD.apiKey);
+let U=null,lastSnap='',busy=false;
+const docUrl=id=>`https://firestore.googleapis.com/v1/projects/${CLOUD.projectId}/databases/(default)/documents/profiles/${id}?key=${CLOUD.apiKey}`;
+const cmsg=t=>{$('cMsg').textContent=t};
+async function sha(p){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('3dhealth:'+p));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
+function snap(){return JSON.stringify({h:S.h,w:S.w,age:S.age,c:S.c,wa:S.wa,hi:S.hi,g:S.g,shape:S.shape,shapeMode:S.shapeMode,act:S.act,diet:S.diet,color:S.color,rec:S.rec})}
+function applyData(d){
+  ['h','w','age','c','wa','hi'].forEach(k=>{const v=+d[k];S[k]=isFinite(v)&&v>0&&v<1000?v:0});
+  S.act=[1.2,1.375,1.55,1.725].includes(+d.act)?+d.act:1.2;
+  S.g=d.g==='male'?'male':'female';
+  S.shape=SHAPES.some(s=>s[0]===d.shape)?d.shape:'apple';
+  S.shapeMode=d.shapeMode==='auto'?'auto':'manual';
+  S.diet=['standard','vegetarian','fasting168'].includes(d.diet)?d.diet:'standard';
+  if(COLORS.includes(d.color))S.color=d.color;
+  S.rec=(Array.isArray(d.rec)?d.rec:[]).slice(-200).filter(r=>r&&isFinite(+r.weight)).map(r=>({id:+r.id||Date.now(),time:String(r.time||'').replace(/[^0-9:]/g,'').slice(0,8),weight:+r.weight,bmi:+r.bmi||0}));
+  document.querySelectorAll('[data-k]').forEach(el=>{const v=S[el.dataset.k];el.value=el.type==='range'?(v||el.dataset.d):(v||'')});
+  $('gender').value=S.g;$('act').value=String(S.act);
+  paintPal();paintShapes();refresh();save();
+  if(S.tab==='trend')renderTrend();if(S.tab==='plan')renderPlan()}
+function renderCloud(){
+  $('cloudIn').classList.toggle('hidden',!!U);$('cloudOn').classList.toggle('hidden',!U);
+  if(U)$('cMask').textContent=U.mask;
+  if(!cloudOn()&&!U)cmsg('雲端功能尚未啟用')}
+async function push(){
+  if(!U)return;busy=true;
+  try{const r=await fetch(docUrl(U.id),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({fields:{data:{stringValue:snap()}}})});
+    if(!r.ok)throw 0;const n=new Date(),p=x=>String(x).padStart(2,'0');cmsg(`✅ 已儲存 ${p(n.getHours())}:${p(n.getMinutes())}`)}
+  catch(e){cmsg('⚠️ 儲存失敗，稍後重試');lastSnap=''}
+  busy=false}
+async function pull(id,mask,isNew){
+  const r=await fetch(docUrl(id));if(!r.ok&&r.status!==404)throw new Error('HTTP '+r.status);
+  if(r.status===404){U={id,mask};lastSnap=snap();await push();cmsg('✅ 新帳號，已開始自動儲存');return}
+  if(!r.ok)throw 0;
+  const j=await r.json(),d=JSON.parse(j.fields.data.stringValue);
+  U={id,mask};applyData(d);lastSnap=snap();cmsg('✅ 已載入你的資料')}
+async function cloudLogin(){
+  const ph=$('phone').value.replace(/\D/g,'');
+  if(!cloudOn()){cmsg('雲端功能尚未啟用');return}
+  if(!$('agree').checked){cmsg('請先勾選同意資料使用說明');return}
+  if(!/^09\d{8}$/.test(ph)){cmsg('請輸入 09 開頭共 10 碼的手機號碼');return}
+  cmsg('載入中…');
+  try{const id=await sha(ph),mask=ph.slice(0,4)+'***'+ph.slice(-3);await pull(id,mask);
+    try{localStorage.setItem('hcloud',JSON.stringify({id,mask}))}catch(e){}}
+  catch(e){U=null;cmsg('⚠️ 連線失敗：'+((e&&e.message)||'未知錯誤'))}
+  renderCloud()}
+function cloudOut(){U=null;try{localStorage.removeItem('hcloud')}catch(e){}cmsg('已登出');renderCloud()}
+async function cloudDel(){
+  if(!U||!confirm('確定永久刪除雲端上的你的資料嗎？此動作無法復原。'))return;
+  try{const r=await fetch(docUrl(U.id),{method:'DELETE'});if(!r.ok)throw 0;cloudOut();cmsg('✅ 雲端資料已刪除')}
+  catch(e){cmsg('⚠️ 刪除失敗，請稍後再試')}}
+setInterval(()=>{if(U&&!busy){const s=snap();if(s!==lastSnap){lastSnap=s;push()}}},2500);
+(async()=>{try{const s=JSON.parse(localStorage.getItem('hcloud')||'null');if(s&&s.id&&cloudOn()){$('agree').checked=true;cmsg('載入中…');await pull(s.id,String(s.mask||''))}}catch(e){U=null;cmsg('⚠️ 連線失敗')}renderCloud()})();
+</script>
+</body>
+</html>
