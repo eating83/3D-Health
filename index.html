@@ -132,6 +132,13 @@ input[type=number],select{outline:none}
       </div>
 
       <!-- 趨勢 -->
+      <div id="t-act" class="tab space-y-4">
+        <div class="flex items-center justify-between"><div><h2 class="text-base font-black">⌚ 穿戴裝置</h2><p id="actSub" class="text-xs text-slate-400"></p></div><div class="flex gap-1.5"><button id="aDemo" onclick="demoAct()" class="bg-slate-100 text-slate-600 text-xs font-bold px-2.5 py-2 rounded-xl">看模擬資料</button><button onclick="demoFall()" class="bg-red-50 text-red-600 text-xs font-bold px-2.5 py-2 rounded-xl">模擬跌倒</button></div></div>
+        <div class="bg-gradient-to-br from-indigo-600 to-purple-600 text-white p-4 rounded-2xl"><div class="text-xs font-bold text-indigo-100">今日步數</div><div class="flex items-end gap-2"><span id="aSteps" class="text-4xl font-black">0</span><span class="text-sm mb-1 text-indigo-100">步</span></div><div class="h-2 bg-white/25 rounded-full mt-2 overflow-hidden"><div id="aBar" class="h-full bg-orange-400 rounded-full" style="width:0%"></div></div><div class="flex justify-between text-[11px] mt-1.5 text-indigo-100"><span id="aPct"></span><span>🔥 約 <b id="aKcal">0</b> kcal</span></div></div>
+        <div id="fallBox" style="display:none" class="bg-red-50 border-2 border-red-300 p-4 rounded-2xl"><div class="flex items-center gap-3"><div class="text-3xl">🚨</div><div class="flex-1"><div class="text-sm font-black text-red-600">偵測到跌倒！</div><div id="fallTime" class="text-xs text-red-500"></div></div><button onclick="ackFall()" class="bg-red-600 text-white text-xs font-bold px-3 py-2 rounded-xl shrink-0">我知道了</button></div></div>
+        <div id="fallOk" class="bg-emerald-50 p-3 rounded-2xl flex items-center gap-2 text-xs font-bold text-emerald-700">🛡 跌倒偵測運作中，目前沒有警報</div>
+        <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-xs space-y-2"><div class="font-black text-slate-700">🔌 連接 XIAO ESP32S3 + MPU6050 裝置</div><div class="text-slate-500">登入雲端後，把下面的裝置代碼填入程式開頭的 DEVICE_ID：</div><div class="flex gap-2"><code id="devCode" class="flex-1 min-w-0 break-all bg-white border border-slate-200 rounded-lg p-2 text-[10px]"></code><button onclick="copyCode()" class="bg-indigo-600 text-white font-bold px-3 rounded-lg shrink-0">複製</button></div><div class="text-[11px] text-slate-400">步數與跌倒偵測僅供參考，可能誤判或漏判，不能取代專業的醫療或看護設備。</div></div>
+      </div>
       <div id="t-trend" class="tab space-y-4">
         <div class="flex items-center justify-between">
           <div><h2 class="text-base font-black">體重趨勢</h2><p class="text-xs text-slate-400">每次記錄新增一個時間點</p></div>
@@ -191,13 +198,13 @@ function paintShapes(){const auto=S.shapeMode==='auto';
 paintShapes();
 $('dietSw').innerHTML=[['standard','均衡'],['vegetarian','🌿素食'],['fasting168','⏱168']].map(([k,l])=>`<button data-d="${k}" class="px-2 py-1 text-xs font-bold rounded-md">${l}</button>`).join('');
 $('dietSw').onclick=e=>{const d=e.target.dataset.d;if(d){S.diet=d;renderPlan()}};
-const TABS=[['data','🏠','資料'],['shape','ℹ️','身型'],['plan','📅','計畫'],['trend','📈','趨勢']];
+const TABS=[['data','🏠','資料'],['shape','ℹ️','身型'],['plan','📅','計畫'],['trend','📈','趨勢'],['act','⌚','活動']];
 $('nav').innerHTML=TABS.map(t=>`<button data-t="${t[0]}" class="flex flex-col items-center gap-0.5 w-16"><span class="text-lg">${t[1]}</span><span class="text-[10px] font-bold">${t[2]}</span></button>`).join('');
 $('nav').onclick=e=>{const b=e.target.closest('button');if(b)setTab(b.dataset.t)};
 function setTab(t){S.tab=t;document.querySelectorAll('.tab').forEach(e=>e.classList.toggle('on',e.id==='t-'+t));
   document.querySelectorAll('#nav button').forEach(b=>{const on=b.dataset.t===t;b.className='flex flex-col items-center gap-0.5 w-16 '+(on?'text-indigo-600':'text-slate-400');b.style.opacity=on?1:.7});
   if(t==='plan'){$('slogan').textContent=SLOGANS[Math.random()*SLOGANS.length|0];renderPlan()}
-  if(t==='trend')renderTrend()}
+  if(t==='trend')renderTrend();if(t==='act')renderAct()}
 setTab('data');
 
 // ---------- 輸入處理 ----------
@@ -402,6 +409,43 @@ async function cloudDel(){
   catch(e){cmsg('⚠️ 刪除失敗，請稍後再試')}}
 setInterval(()=>{if(U&&!busy){const s=snap();if(s!==lastSnap){lastSnap=s;push()}}},2500);
 (async()=>{try{const s=JSON.parse(localStorage.getItem('hcloud')||'null');if(s&&s.id&&cloudOn()){$('agree').checked=true;cmsg('載入中…');await pull(s.id,String(s.mask||''))}}catch(e){U=null;cmsg('⚠️ 連線失敗')}renderCloud()})();
+</script>
+<script>
+/* ===== 穿戴裝置 (活動分頁) ===== */
+let ACT=null,demo=false;
+const actUrl=id=>`https://firestore.googleapis.com/v1/projects/${CLOUD.projectId}/databases/(default)/documents/activity/${id.slice(0,16)}?key=${CLOUD.apiKey}`;
+function drawAct(){
+  const a=ACT||{},n=v=>(v!=null&&isFinite(+v)&&+v>0)?+v:null;
+  const st=n(a.steps)||0,ts=n(a.ts),fl=n(a.fall);
+  const pct=Math.min(100,Math.round(st/8000*100));
+  $('aSteps').textContent=st.toLocaleString();$('aBar').style.width=pct+'%';
+  $('aPct').textContent='目標 8,000 步 · 已達成 '+pct+'%';$('aKcal').textContent=Math.round(st*0.04);
+  let sub='尚未收到裝置資料';
+  if(demo)sub='模擬資料（非真實裝置）';
+  else if(ts){const m=Math.max(0,Math.round((Date.now()/1000-ts)/60));sub=m<1?'剛剛同步':m<60?m+' 分鐘前同步':new Date(ts*1000).toLocaleString()+' 同步'}
+  $('actSub').textContent=sub;
+  let seen=0;try{seen=+localStorage.getItem('fallSeen')||0}catch(e){}
+  const al=!!(fl&&fl>seen);
+  $('fallBox').style.display=al?'block':'none';$('fallOk').style.display=al?'none':'flex';
+  if(al){const m=Math.max(0,Math.round((Date.now()/1000-fl)/60));$('fallTime').textContent=(m<1?'剛剛':m<60?m+' 分鐘前':new Date(fl*1000).toLocaleString())+'，請盡快確認使用者狀況'}
+  $('devCode').textContent=U?U.id.slice(0,16):'請先在「資料」分頁登入雲端';
+  $('aDemo').textContent=demo?'改看真實資料':'看模擬資料'}
+async function fetchAct(){
+  if(!U||!cloudOn())return;
+  try{const r=await fetch(actUrl(U.id));
+    if(r.status===404)ACT=null;
+    else if(r.ok){const j=await r.json(),d=JSON.parse(j.fields.data.stringValue);ACT={steps:+d.steps||0,fall:+d.fall||0,ts:+d.ts||0}}
+  }catch(e){}
+  drawAct()}
+function renderAct(){if(!demo)fetchAct();drawAct()}
+function demoAct(){
+  if(demo){demo=false;ACT=null;renderAct();return}
+  demo=true;
+  ACT={steps:5000+Math.round(Math.random()*3000),fall:0,ts:0};drawAct()}
+function demoFall(){demo=true;ACT={steps:(ACT&&ACT.steps)||5234,fall:Math.floor(Date.now()/1000),ts:0};drawAct()}
+function ackFall(){try{localStorage.setItem('fallSeen',String((ACT&&ACT.fall)||0))}catch(e){}drawAct()}
+function copyCode(){if(U&&navigator.clipboard)navigator.clipboard.writeText(U.id.slice(0,16)).then(()=>toast('已複製裝置代碼')).catch(()=>{})}
+setInterval(()=>{if(S.tab==='act'&&!demo)fetchAct()},15000);
 </script>
 </body>
 </html>
