@@ -134,6 +134,7 @@ input[type=number],select{outline:none}
       <!-- 趨勢 -->
       <div id="t-act" class="tab space-y-4">
         <div class="flex items-center justify-between"><div><h2 class="text-base font-black">⌚ 穿戴裝置</h2><p id="actSub" class="text-xs text-slate-400"></p></div><div class="flex gap-1.5"><button onclick="renderAct();toast('重新讀取中…')" class="bg-indigo-50 text-indigo-600 text-xs font-bold px-2.5 py-2 rounded-xl">重新整理</button><button id="aDemo" onclick="demoAct()" class="bg-slate-100 text-slate-600 text-xs font-bold px-2.5 py-2 rounded-xl">看模擬資料</button></div></div>
+        <div id="wifiOk" style="display:none" class="bg-emerald-50 p-3 rounded-2xl items-center gap-2 text-xs font-bold text-emerald-700">📶 WiFi 已連線</div>
         <div class="bg-gradient-to-br from-indigo-600 to-purple-600 text-white p-4 rounded-2xl"><div class="text-xs font-bold text-indigo-100">今日步數</div><div class="flex items-end gap-2"><span id="aSteps" class="text-4xl font-black">0</span><span class="text-sm mb-1 text-indigo-100">步</span></div><div class="h-2 bg-white/25 rounded-full mt-2 overflow-hidden"><div id="aBar" class="h-full bg-orange-400 rounded-full" style="width:0%"></div></div><div class="flex justify-between text-[11px] mt-1.5 text-indigo-100"><span id="aPct"></span><span>🔥 約 <b id="aKcal">0</b> kcal</span></div></div>
                         <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-xs space-y-2"><div class="font-black text-slate-700">🔌 連接 XIAO ESP32S3 + MPU6050 裝置</div><div class="text-slate-500">登入雲端後，把下面的裝置代碼填入程式開頭的 DEVICE_ID：</div><div class="flex gap-2"><code id="devCode" class="flex-1 min-w-0 break-all bg-white border border-slate-200 rounded-lg p-2 text-[10px]"></code><button onclick="copyCode()" class="bg-indigo-600 text-white font-bold px-3 rounded-lg shrink-0">複製</button></div><div class="text-[11px] text-slate-400">步數僅供參考，可能有誤差，不能取代專業的醫療設備。</div></div>
       </div>
@@ -414,7 +415,9 @@ let ACT=null,demo=false,ACT_ERR='';
 const actUrl=id=>`https://firestore.googleapis.com/v1/projects/${CLOUD.projectId}/databases/(default)/documents/activity/${id.slice(0,16)}?key=${CLOUD.apiKey}`;
 function drawAct(){
   const a=ACT||{},n=v=>(v!=null&&isFinite(+v)&&+v>0)?+v:null;
-  const st=n(a.steps)||0,ts=n(a.ts),fl=n(a.fall);
+  const st0=n(a.steps)||0,ts=n(a.ts),fl=n(a.fall);
+  const stale=!demo&&!!ts&&new Date(ts*1000).toDateString()!==new Date().toDateString();
+  const st=stale?0:st0;
   const pct=Math.min(100,Math.round(st/8000*100));
   $('aSteps').textContent=st.toLocaleString();$('aBar').style.width=pct+'%';
   $('aPct').textContent='目標 8,000 步 · 已達成 '+pct+'%';$('aKcal').textContent=Math.round(st*0.04);
@@ -423,6 +426,7 @@ function drawAct(){
   else if(ACT_ERR)sub='⚠️ '+ACT_ERR;
   else if(ts){const m=Math.max(0,Math.round((Date.now()/1000-ts)/60));sub=m<1?'剛剛同步':m<60?m+' 分鐘前同步':new Date(ts*1000).toLocaleString()+' 同步'}
   if(!demo&&!ACT_ERR&&ACT&&!ts)sub='已收到裝置資料';$('actSub').textContent=sub;
+  const wifiOn=!demo&&!ACT_ERR&&!!ts&&(Date.now()/1000-ts)<150;$('wifiOk').style.display=wifiOn?'flex':'none';
   $('devCode').textContent=U?U.id.slice(0,16):'請先在「資料」分頁登入雲端';
   $('aDemo').textContent=demo?'改看真實資料':'看模擬資料'}
 async function fetchAct(){
