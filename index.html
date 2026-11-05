@@ -426,7 +426,12 @@ function drawAct(){
   else if(ACT_ERR)sub='⚠️ '+ACT_ERR;
   else if(ts){const m=Math.max(0,Math.round((Date.now()/1000-ts)/60));sub=m<1?'剛剛同步':m<60?m+' 分鐘前同步':new Date(ts*1000).toLocaleString()+' 同步'}
   if(!demo&&!ACT_ERR&&ACT&&!ts)sub='已收到裝置資料';$('actSub').textContent=sub;
-  const wifiOn=!demo&&!ACT_ERR&&!!ts&&(Date.now()/1000-ts)<150;$('wifiOk').style.display=wifiOn?'flex':'none';
+  const wifiOn=!demo&&!ACT_ERR&&!!ts&&(Date.now()/1000-ts)<150;
+  const wifiOff=!demo&&!wifiOn&&((!!ts&&!ACT_ERR)||(ACT_ERR.indexOf('雲端還沒有')===0));
+  const wEl=$('wifiOk');
+  if(wifiOn){wEl.className='bg-emerald-50 p-3 rounded-2xl flex items-center gap-2 text-xs font-bold text-emerald-700';wEl.textContent='📶 WiFi 已連線';wEl.style.display='flex'}
+  else if(wifiOff){wEl.className='bg-red-50 p-3 rounded-2xl flex items-center gap-2 text-xs font-bold text-red-600';wEl.textContent='📵 WiFi 已斷線';wEl.style.display='flex'}
+  else wEl.style.display='none';
   $('devCode').textContent=U?U.id.slice(0,16):'請先在「資料」分頁登入雲端';
   $('aDemo').textContent=demo?'改看真實資料':'看模擬資料'}
 async function fetchAct(){
