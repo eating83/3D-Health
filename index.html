@@ -124,7 +124,7 @@ input[type=number],select{outline:none}
         <div id="meta"></div>
         <div class="flex items-center justify-between">
           <h3 class="text-base font-black">🍽 一週飲食</h3>
-          <div id="dietSw" class="flex bg-slate-100 p-1 rounded-lg"></div>
+          <div class="flex items-center gap-2"><button id="mealShuffle" type="button" class="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-orange-100 text-orange-600 active:scale-95 transition">🔄 更換菜色</button><div id="dietSw" class="flex bg-slate-100 p-1 rounded-lg"></div></div>
         </div>
         <div id="diet" class="bg-orange-50 rounded-2xl p-4 space-y-3"></div>
         <h3 class="text-base font-black flex items-center justify-between pt-2"><span>🏃 一週運動</span><span id="wkTag" class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700"></span></h3>
@@ -168,6 +168,26 @@ const DIET=[
 '早餐：蛋餅(少油)＋無糖豆漿\n午餐：自助餐：烤鯖魚、炒時蔬、滷海帶、白飯\n晚餐：蔬菜豆腐湯、燙青菜、滷蛋',
 '早餐：饅頭夾蛋＋無糖豆漿\n午餐：自助餐：瘦肉片炒青椒、燙青菜、蒸南瓜、白飯\n晚餐：絲瓜蛤蜊湯、炒高麗菜、豆干',
 '早餐：地瓜＋水煮蛋＋無糖豆漿\n午餐：自助餐：蒸魚、炒木耳、燙青菜、白飯\n晚餐：雞肉絲湯麵(少油)、燙青菜、滷蛋'];
+// ---- 更換菜色：把原本 7 天拆成早/午/晚菜色池，再加幾道新菜，用種子洗牌 ----
+const DP=[[],[],[]];
+DIET.forEach(f=>f.split('\n').forEach((l,i)=>DP[i].push(l)));
+DP[0].push('早餐：燕麥片＋無糖豆漿＋香蕉','早餐：全麥饅頭＋水煮蛋＋無糖豆漿','早餐：無糖優格＋水果＋堅果');
+DP[1].push('午餐：自助餐：滷雞胸肉、燙青菜、炒豆芽、糙米飯','午餐：自助餐：蒸魚、燙地瓜葉、炒時蔬、白飯','午餐：自助餐：瘦肉片炒青椒、炒木耳、燙青菜、糙米飯');
+DP[2].push('晚餐：蒜炒花椰菜、蒸蛋、板豆腐','晚餐：蔬菜豆腐湯、涼拌小黃瓜、水煮蛋','晚餐：絲瓜蛤蜊湯、燙青菜、滷豆腐');
+const wkId=()=>Math.floor((Math.floor(Date.now()/864e5)+3)/7); // 以週一為一週的開始
+let MS=null;
+try{const m=JSON.parse(localStorage.getItem('hmeal')||'null');if(m&&m.w===wkId()&&isFinite(m.s))MS=m.s}catch(e){}
+const mealSeed=()=>MS!==null?MS:wkId()*7919+13; // 沒按過按鈕：每週自動換一組
+function rnd(seed){let s=(seed>>>0)%2147483647||1;return()=>(s=s*16807%2147483647)/2147483647}
+function weekDiet(){
+  const sd=mealSeed();
+  const sh=DP.map((pool,k)=>{const r=rnd(sd+k*101),a=[...pool];
+    for(let i=a.length-1;i>0;i--){const j=Math.floor(r()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a});
+  return DAYS.map((_,i)=>sh.map(a=>a[i]).join('\n'))}
+function shuffleMeals(){
+  MS=Math.floor(Math.random()*1e6);
+  try{localStorage.setItem('hmeal',JSON.stringify({w:wkId(),s:MS}))}catch(e){}
+  renderPlan();toast('已為你換了一週新菜色！')}
 const WORK={
 apple:['全身 HIIT 燃脂 (20分) + 核心捲腹 3組','快走或超慢跑 (45分) + 死蟲式','登山者式 4組 + 棒式 60秒','恢復：筋膜放鬆與瑜珈 (30分)','波比跳 (15分) + 俄羅斯轉體 4組','慢跑或游泳 (50分) + 側棒式','休息：飯後散步 30分'],
 pear:['徒手深蹲 4x15 + 分腿蹲 每側12','飛輪或快走 (40分) + 臀腿拉筋','相撲深蹲 4組 + 側臥抬腿 20下','恢復：下肢滾筒與瑜珈 (30分)','臀橋 4x20 + 階梯有氧 (30分)','後腳抬高蹲 3組 + 開合跳 (20分)','休息：泡腳與腿部按摩'],
@@ -197,6 +217,7 @@ function paintShapes(){const auto=S.shapeMode==='auto';
 paintShapes();
 $('dietSw').innerHTML=[['standard','均衡'],['vegetarian','🌿素食'],['fasting168','⏱168']].map(([k,l])=>`<button data-d="${k}" class="px-2 py-1 text-xs font-bold rounded-md">${l}</button>`).join('');
 $('dietSw').onclick=e=>{const d=e.target.dataset.d;if(d){S.diet=d;renderPlan()}};
+$('mealShuffle').onclick=()=>shuffleMeals();
 const TABS=[['data','🏠','資料'],['shape','ℹ️','身型'],['plan','📅','計畫'],['trend','📈','趨勢'],['act','⌚','活動']];
 $('nav').innerHTML=TABS.map(t=>`<button data-t="${t[0]}" class="flex flex-col items-center gap-0.5 w-16"><span class="text-lg">${t[1]}</span><span class="text-[10px] font-bold">${t[2]}</span></button>`).join('');
 $('nav').onclick=e=>{const b=e.target.closest('button');if(b)setTab(b.dataset.t)};
@@ -255,7 +276,7 @@ function renderPlan(){
     tc=b>=24?Math.max(1200,tdee-400):b<18.5?tdee+300:tdee;
     $('meta').innerHTML=`<div class="bg-slate-900 text-white p-4 rounded-2xl space-y-3"><div class="flex justify-between border-b border-slate-800 pb-2.5"><div><div class="text-[10px] text-slate-400 font-bold">基礎代謝 (BMR)</div><div class="text-lg font-black">${bmr} <span class="text-xs font-normal text-slate-400">kcal</span></div></div><div class="text-right"><div class="text-[10px] text-slate-400 font-bold">每日消耗 (TDEE)</div><div class="text-lg font-black text-emerald-400">${tdee} <span class="text-xs font-normal text-slate-400">kcal</span></div></div></div><div class="text-xs text-slate-300">🎯 建議每日攝取 <span class="text-amber-400 font-black">${tc} 大卡</span></div><div class="grid grid-cols-3 gap-2 text-center">${[['🍗 蛋白質',Math.round(tc*.3/4),'text-rose-400'],['🍚 碳水',Math.round(tc*.4/4),'text-sky-400'],['🥑 油脂',Math.round(tc*.3/9),'text-amber-400']].map(x=>`<div class="bg-slate-800 p-2 rounded-xl"><div class="text-[10px] text-slate-400">${x[0]}</div><div class="text-sm font-black ${x[2]}">${x[1]}g</div></div>`).join('')}</div></div>`}
   else $('meta').innerHTML='<div class="bg-slate-100 p-4 rounded-2xl text-center text-xs font-bold text-slate-500">請先在「資料」輸入身高、體重與年齡，解鎖熱量與營養素計算！</div>';
-  $('diet').innerHTML=DIET.map((f,i)=>`<div class="flex gap-3 ${i<6?'border-b border-orange-100 pb-3':''}"><div class="font-black text-orange-400 w-8 shrink-0">W${DAYS[i]}</div><div class="text-sm font-bold text-slate-700 whitespace-pre-line">${menu(f)}</div></div>`).join('');
+  $('diet').innerHTML=weekDiet().map((f,i)=>`<div class="flex gap-3 ${i<6?'border-b border-orange-100 pb-3':''}"><div class="font-black text-orange-400 w-8 shrink-0">W${DAYS[i]}</div><div class="text-sm font-bold text-slate-700 whitespace-pre-line">${menu(f)}</div></div>`).join('');
   const loss=b>23.5;$('wkTag').textContent=loss?'🔥 減脂菜單':'✨ 體態維持';
   $('work').innerHTML=(loss?WORK[S.shape]:WORK.maintain).map((x,i)=>`<div class="flex gap-3 ${i<6?'border-b border-blue-100 pb-3':''}"><div class="font-black text-blue-400 w-8 shrink-0">W${DAYS[i]}</div><div class="text-sm font-bold text-slate-700">${x}</div></div>`).join('')}
 function renderTrend(){
