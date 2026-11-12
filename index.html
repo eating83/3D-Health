@@ -133,7 +133,7 @@ input[type=number],select{outline:none}
 
       <!-- 趨勢 -->
       <div id="t-act" class="tab space-y-4">
-        <div class="flex items-center justify-between"><div><h2 class="text-base font-black">⌚ 穿戴裝置</h2><p id="actSub" class="text-xs text-slate-400"></p></div><div class="flex gap-1.5"><button onclick="renderAct();toast('重新讀取中…')" class="bg-indigo-50 text-indigo-600 text-xs font-bold px-2.5 py-2 rounded-xl">重新整理</button><button id="aDemo" onclick="demoAct()" class="bg-slate-100 text-slate-600 text-xs font-bold px-2.5 py-2 rounded-xl">看模擬資料</button></div></div>
+        <div class="flex items-center justify-between"><div><h2 class="text-base font-black">⌚ 穿戴裝置</h2><p id="actSub" class="text-xs text-slate-400"></p></div><div class="flex gap-1.5"><button onclick="renderAct();toast('重新讀取中…')" class="bg-indigo-50 text-indigo-600 text-xs font-bold px-2.5 py-2 rounded-xl">重新整理</button><button onclick="walkUntil=Date.now()+10000;toast('模擬走路 10 秒')" class="bg-emerald-50 text-emerald-600 text-xs font-bold px-2.5 py-2 rounded-xl">模擬走路</button><button id="aDemo" onclick="demoAct()" class="bg-slate-100 text-slate-600 text-xs font-bold px-2.5 py-2 rounded-xl">看模擬資料</button></div></div>
         <div id="wifiOk" style="display:none" class="bg-emerald-50 p-3 rounded-2xl items-center gap-2 text-xs font-bold text-emerald-700">📶 WiFi 已連線</div>
         <div class="bg-gradient-to-br from-indigo-600 to-purple-600 text-white p-4 rounded-2xl"><div class="text-xs font-bold text-indigo-100">今日步數</div><div class="flex items-end gap-2"><span id="aSteps" class="text-4xl font-black">0</span><span class="text-sm mb-1 text-indigo-100">步</span></div><div class="h-2 bg-white/25 rounded-full mt-2 overflow-hidden"><div id="aBar" class="h-full bg-orange-400 rounded-full" style="width:0%"></div></div><div class="flex justify-between text-[11px] mt-1.5 text-indigo-100"><span id="aPct"></span><span>🔥 約 <b id="aKcal">0</b> kcal</span></div></div>
                         <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-xs space-y-2"><div class="font-black text-slate-700">🔌 連接 XIAO ESP32S3 + MPU6050 裝置</div><div class="text-slate-500">登入雲端後，把下面的裝置代碼填入程式開頭的 DEVICE_ID：</div><div class="flex gap-2"><code id="devCode" class="flex-1 min-w-0 break-all bg-white border border-slate-200 rounded-lg p-2 text-[10px]"></code><button onclick="copyCode()" class="bg-indigo-600 text-white font-bold px-3 rounded-lg shrink-0">複製</button></div><div class="text-[11px] text-slate-400">步數僅供參考，可能有誤差，不能取代專業的醫療設備。</div></div>
@@ -313,7 +313,7 @@ function drawScreen(){
 function resize(){const w=mount.clientWidth,h=mount.clientHeight;if(!w||!h)return;cam.aspect=w/h;cam.updateProjectionMatrix();ren.setSize(w,h)}
 addEventListener('resize',resize);
 
-let upd=()=>{};
+let upd=()=>{};var walkUntil=0;
 function disposeGroup(g){g.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material)o.material.dispose()});while(g.children.length)g.remove(g.children[0])}
 let bq=0;function queueBuild(){if(!bq)bq=requestAnimationFrame(()=>{bq=0;build()})}
 function build(){
@@ -353,13 +353,15 @@ function build(){
     for(let i=0;i<4;i++){const f=at(sp(.034,mt.skin),-side*(.066-i*.044),(i===1||i===2)?-.125:-.112,.01);f.scale.set(.88,1.65,.88);hd.add(f)}
     fg.add(hd);g.add(fg);return g};
   const aL=arm(1),aR=arm(-1);model.add(aL,aR);
-  [1,-1].forEach(s=>{const lg=new THREE.Group();lg.position.set(s*.25*sH,.6,0);lg.add(at(cy(.15,.15,.7,mt.skin),0,-.1,0));lg.add(at(new THREE.Mesh(new THREE.BoxGeometry(.22,.15,.38),mt.clothes),0,-.52,.08));model.add(lg)});
+  const legs=[];[1,-1].forEach(s=>{const lg=new THREE.Group();lg.position.set(s*.25*sH,.85,0);lg.add(at(cy(.15,.15,.7,mt.skin),0,-.35,0));lg.add(at(new THREE.Mesh(new THREE.BoxGeometry(.22,.15,.38),mt.clothes),0,-.77,.08));legs.push(lg);model.add(lg)});
   avatar.add(model);
   const t0=Date.now();
   upd=()=>{const t=(Date.now()-t0)/1e3;let a;
     if(S.anim){if(bad){model.position.x=Math.sin(t*40)*.03;model.position.y=-1;a=nat+.35+Math.sin(t*25)*.12}
       else{model.position.y=-1+Math.abs(Math.sin(t*6))*.4;a=2.55+Math.sin(t*12)*.22}}
+    else if(Date.now()<walkUntil){const w=Math.sin(t*8);model.position.y=-1+Math.abs(Math.cos(t*8))*.06;model.position.x=0;a=nat+.05;legs[0].rotation.x=w*.55;legs[1].rotation.x=-w*.55;aL.rotation.x=-w*.5;aR.rotation.x=w*.5}
     else{model.position.y=-1+Math.sin(t*2)*.02;model.position.x=0;a=nat+Math.sin(t*2)*.035}
+    if(S.anim||Date.now()>=walkUntil){legs[0].rotation.x=legs[1].rotation.x=0;aL.rotation.x=aR.rotation.x=0}
     aL.rotation.z=a;aR.rotation.z=-a};
   const nbb=nb;$('bubble').textContent=nbb>=24?'太胖了...跳不動🥵':'太瘦了...沒力氣🤕';$('bubble').classList.toggle('hidden',!bad)}
 
@@ -432,13 +434,14 @@ setInterval(()=>{if(U&&!busy){const s=snap();if(s!==lastSnap){lastSnap=s;push()}
 </script>
 <script>
 /* ===== 穿戴裝置 (活動分頁) ===== */
-let ACT=null,demo=false,ACT_ERR='';
+let ACT=null,demo=false,ACT_ERR='',lastSteps=null;
 const actUrl=id=>`https://firestore.googleapis.com/v1/projects/${CLOUD.projectId}/databases/(default)/documents/activity/${id.slice(0,16)}?key=${CLOUD.apiKey}`;
 function drawAct(){
   const a=ACT||{},n=v=>(v!=null&&isFinite(+v)&&+v>0)?+v:null;
   const st0=n(a.steps)||0,ts=n(a.ts),fl=n(a.fall);
   const stale=!demo&&!!ts&&new Date(ts*1000).toDateString()!==new Date().toDateString();
   const st=stale?0:st0;
+  if(ACT&&!demo&&!stale){if(lastSteps!==null&&st>lastSteps)walkUntil=Date.now()+8000;lastSteps=st}
   const pct=Math.min(100,Math.round(st/8000*100));
   $('aSteps').textContent=st.toLocaleString();$('aBar').style.width=pct+'%';
   $('aPct').textContent='目標 8,000 步 · 已達成 '+pct+'%';$('aKcal').textContent=Math.round(st*0.04);
@@ -471,7 +474,7 @@ function demoAct(){
   demo=true;
   ACT={steps:5000+Math.round(Math.random()*3000),fall:0,ts:0};drawAct()}
 function copyCode(){if(U&&navigator.clipboard)navigator.clipboard.writeText(U.id.slice(0,16)).then(()=>toast('已複製裝置代碼')).catch(()=>{})}
-setInterval(()=>{if(S.tab==='act'&&!demo)fetchAct()},5000);
+setInterval(()=>{if(U&&!demo)fetchAct()},5000);
 </script>
 </body>
 </html>
