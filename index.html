@@ -155,7 +155,7 @@ input[type=number],select{outline:none}
         <!-- 每日步數趨勢 -->
         <div class="border-t border-slate-100 pt-5 space-y-3">
           <div class="flex items-center justify-between">
-            <div><h2 class="text-base font-black">👟 每日步數趨勢</h2><p class="text-xs text-slate-400">連接藍牙每 5 秒自動同步每日步數</p></div>
+            <div><h2 class="text-base font-black">👟 每日步數趨勢</h2><p class="text-xs text-slate-400">跨日 24:00 自動結算歸零 · 重啟不歸零</p></div>
             <div class="flex gap-2">
               <button onclick="S.stepRec=[];save();renderTrend()" class="p-2 text-slate-500 bg-slate-100 rounded-xl text-xs font-bold">清空</button>
               <button onclick="recordTodaySteps()" class="bg-orange-500 active:scale-95 text-white text-xs font-bold px-3 py-2 rounded-xl">＋ 記錄步數</button>
@@ -185,15 +185,16 @@ const DIET=[
 '早餐：饅頭夾蛋＋無糖豆漿\n午餐：自助餐：瘦肉片炒青椒、燙青菜、蒸南瓜、白飯\n晚餐：絲瓜蛤蜊湯、炒高麗菜、豆干',
 '早餐：地瓜＋水煮蛋＋無糖豆漿\n午餐：自助餐：蒸魚、炒木耳、燙青菜、白飯\n晚餐：雞肉絲湯麵(少油)、燙青菜、滷蛋'];
 
+// ---- 更換菜色：把原本 7 天拆成早/午/晚菜色池，再加幾道新菜，用種子洗牌 ----
 const DP=[[],[],[]];
 DIET.forEach(f=>f.split('\n').forEach((l,i)=>DP[i].push(l)));
 DP[0].push('早餐：燕麥片＋無糖豆漿＋香蕉','早餐：全麥饅頭＋水煮蛋＋無糖豆漿','早餐：無糖優格＋水果＋堅果');
 DP[1].push('午餐：自助餐：滷雞胸肉、燙青菜、炒豆芽、糙米飯','午餐：自助餐：蒸魚、燙地瓜葉、炒時蔬、白飯','午餐：自助餐：瘦肉片炒青椒、炒木耳、燙青菜、糙米飯');
 DP[2].push('晚餐：蒜炒花椰菜、蒸蛋、板豆腐','晚餐：蔬菜豆腐湯、涼拌小黃瓜、水煮蛋','晚餐：絲瓜蛤蜊湯、燙青菜、滷豆腐');
-const wkId=()=>Math.floor((Math.floor(Date.now()/864e5)+3)/7);
+const wkId=()=>Math.floor((Math.floor(Date.now()/864e5)+3)/7); // 以週一為一週的開始
 let MS=null;
 try{const m=JSON.parse(localStorage.getItem('hmeal')||'null');if(m&&m.w===wkId()&&isFinite(m.s))MS=m.s}catch(e){}
-const mealSeed=()=>MS!==null?MS:wkId()*7919+13;
+const mealSeed=()=>MS!==null?MS:wkId()*7919+13; // 沒按過按鈕：每週自動換一組
 function rnd(seed){let s=(seed>>>0)%2147483647||1;return()=>(s=s*16807%2147483647)/2147483647}
 function weekDiet(){
   const sd=mealSeed();
@@ -219,10 +220,12 @@ try{const sr=JSON.parse(localStorage.getItem('hsteprec')||'[]');if(Array.isArray
 function save(){try{localStorage.setItem('hrec',JSON.stringify(S.rec));localStorage.setItem('hsteprec',JSON.stringify(S.stepRec))}catch(e){}}
 function toast(t){const e=$('toast');e.textContent=t;e.classList.remove('hidden');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.add('hidden'),2500)}
 
+// ---------- UI 組裝 ----------
 $('pal').innerHTML=COLORS.map(c=>`<button data-c="${c}" class="w-6 h-6 rounded-full border-2 border-transparent" style="background:${c}"></button>`).join('');
 $('pal').onclick=e=>{const c=e.target.dataset.c;if(c){S.color=c;paintPal();build()}};
 function paintPal(){document.querySelectorAll('#pal button').forEach(b=>{b.style.borderColor=b.dataset.c===S.color?'#1e293b':'transparent';b.style.transform=b.dataset.c===S.color?'scale(1.1)':''})}
 paintPal();
+void [['c','胸圍',88,60,130],['wa','腰圍',70,50,120],['hi','臀圍',92,65,135]].map(([k,l,d,mn,mx])=>`<div class="bg-white p-2.5 rounded-xl border border-slate-200"><label class="text-[11px] font-bold text-slate-400 block">${l}</label><input data-k="${k}" data-d="${d}" type="number" placeholder="${d}" class="w-full bg-transparent text-lg font-black mb-1"><input data-k="${k}" data-d="${d}" type="range" min="${mn}" max="${mx}" class="w-full accent-indigo-600"></div>`).join('');
 $('shapes').innerHTML=SHAPES.map(s=>`<button data-s="${s[0]}" class="p-4 rounded-2xl text-left transition-all"><div class="font-bold mb-1">${s[1]}</div><div class="text-xs">${s[2]}</div></button>`).join('');
 $('shapes').onclick=e=>{const b=e.target.closest('button');if(b&&S.shapeMode==='manual'){S.shape=b.dataset.s;paintShapes();build()}};
 function paintShapes(){const auto=S.shapeMode==='auto';
@@ -243,6 +246,7 @@ function setTab(t){S.tab=t;document.querySelectorAll('.tab').forEach(e=>e.classL
   if(t==='trend')renderTrend();if(t==='act')renderAct()}
 setTab('data');
 
+// ---------- 輸入處理 ----------
 document.querySelectorAll('[data-k]').forEach(el=>el.addEventListener('input',()=>{
   S[el.dataset.k]=parseFloat(el.value)||0;
   document.querySelectorAll(`[data-k="${el.dataset.k}"]`).forEach(o=>{if(o!==el)o.value=o.type==='range'?(S[el.dataset.k]||o.dataset.d):el.value});
@@ -267,27 +271,123 @@ function addRec(){
   S.rec.push({id:Date.now(),time:`${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())}`,weight:+S.w.toFixed(1),bmi:+bmi().toFixed(1)});
   save();toast(`已成功記錄 ${S.w.toFixed(1)} kg！`);if(S.tab==='trend')renderTrend()}
 
+/* ===== 每日步數狀態、跨日 24:00 結算歸零、重啟接續累加 ===== */
+function dateKeysFromObj(d){
+  const p=x=>String(x).padStart(2,'0');
+  return {key:`${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`,date:`${p(d.getMonth()+1)}/${p(d.getDate())}`};
+}
 function todayKeys(){
-  const n=new Date(),p=x=>String(x).padStart(2,'0');
-  return {key:`${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())}`,date:`${p(n.getMonth()+1)}/${p(n.getDate())}`};
+  return dateKeysFromObj(new Date());
 }
-function syncDailyStep(steps,notify=false){
-  const st=Math.max(0,Math.round(+steps||0));
-  if(st<=0){if(notify)toast('目前今日步數為 0，請先走幾步再記錄喔！');return}
-  const {key,date}=todayKeys();
-  const kcal=Math.round(st*0.04);
-  const idx=S.stepRec.findIndex(r=>r.key===key);
-  if(idx>=0){S.stepRec[idx].steps=st;S.stepRec[idx].kcal=kcal;S.stepRec[idx].date=date}
-  else{S.stepRec.push({key,date,steps:st,kcal})}
-  if(S.stepRec.length>30)S.stepRec=S.stepRec.slice(-30);
+
+// 紀錄當日累積狀態（即使裝置重啟從 0 開始算，網頁也會自動把前次累積的基數加上去）
+let STEP_STATE = {
+  dateKey: todayKeys().key,
+  baseSteps: 0,      // 今日在裝置重啟前已累積的步數
+  lastRawHw: null,   // 裝置上一次傳來的原始步數（用來偵測重啟歸零）
+  todayTotal: 0      // 今日實際總步數 = baseSteps + rawHw
+};
+
+try {
+  const savedSt = JSON.parse(localStorage.getItem('hstep_state') || 'null');
+  if (savedSt && savedSt.dateKey === todayKeys().key) {
+    STEP_STATE.baseSteps = Math.max(0, +savedSt.baseSteps || 0);
+    STEP_STATE.lastRawHw = (savedSt.lastRawHw != null && isFinite(+savedSt.lastRawHw)) ? +savedSt.lastRawHw : null;
+    STEP_STATE.todayTotal = Math.max(0, +savedSt.todayTotal || 0);
+  }
+} catch(e) {}
+
+function saveStepState() {
+  try {
+    localStorage.setItem('hstep_state', JSON.stringify(STEP_STATE));
+  } catch(e) {}
+}
+
+function upsertStepRecord(key, date, steps) {
+  const st = Math.max(0, Math.round(+steps || 0));
+  if (st <= 0) return;
+  const kcal = Math.round(st * 0.04);
+  const idx = S.stepRec.findIndex(r => r.key === key);
+  if (idx >= 0) {
+    S.stepRec[idx].steps = st;
+    S.stepRec[idx].kcal = kcal;
+    S.stepRec[idx].date = date;
+  } else {
+    S.stepRec.push({ key, date, steps: st, kcal });
+  }
+  S.stepRec.sort((a, b) => a.key.localeCompare(b.key));
+  if (S.stepRec.length > 30) S.stepRec = S.stepRec.slice(-30);
   save();
-  if(notify)toast(`已記錄今日 ${st.toLocaleString()} 步！`);
-  if(S.tab==='trend')renderTrend();
 }
+
+function syncDailyStep(steps, notify=false){
+  checkMidnightRollover();
+  const st = Math.max(0, Math.round(+steps || 0));
+  if(st <= 0){ if(notify) toast('目前今日步數為 0，請先走幾步再記錄喔！'); return; }
+  const {key, date} = todayKeys();
+  STEP_STATE.dateKey = key;
+  STEP_STATE.todayTotal = st;
+  saveStepState();
+  upsertStepRecord(key, date, st);
+  if(notify) toast(`已記錄今日 ${st.toLocaleString()} 步！`);
+  if(S.tab === 'trend') renderTrend();
+}
+
 function recordTodaySteps(){
-  const st=(ACT&&+ACT.steps)||0;
-  syncDailyStep(st,true);
+  checkMidnightRollover();
+  const st = Math.max((ACT && +ACT.steps) || 0, STEP_STATE.todayTotal || 0);
+  syncDailyStep(st, true);
 }
+
+// 跨日 24:00 檢查：把前一天最終總步數結算存進每日步數明細，並將今日步數重置為 0
+function checkMidnightRollover() {
+  const { key: curKey } = todayKeys();
+  if (STEP_STATE.dateKey !== curKey) {
+    const prevKey = STEP_STATE.dateKey;
+    const prevTotal = STEP_STATE.todayTotal;
+    if (prevKey && prevTotal > 0) {
+      const parts = prevKey.split('-');
+      const prevDateStr = parts.length === 3 ? `${parts[1]}/${parts[2]}` : prevKey.slice(5).replace('-', '/');
+      upsertStepRecord(prevKey, prevDateStr, prevTotal);
+    }
+    // 如果硬體此刻已經有步數，把當前硬體數值設為今日新基準偏移，讓今日從 0 重新起算
+    const currentHw = (STEP_STATE.lastRawHw != null) ? STEP_STATE.lastRawHw : 0;
+    STEP_STATE = {
+      dateKey: curKey,
+      baseSteps: -currentHw,
+      lastRawHw: STEP_STATE.lastRawHw,
+      todayTotal: 0
+    };
+    saveStepState();
+
+    if (!demo) {
+      ACT = { steps: 0, fall: 0, ts: Math.floor(Date.now() / 1000) };
+      stepDirty = true;
+      drawAct();
+    }
+    if (S.tab === 'trend') renderTrend();
+  }
+}
+
+// 計算跨重啟與跨日後的今日真實累積步數
+function processHardwareSteps(rawHwSteps) {
+  checkMidnightRollover();
+  const raw = Math.max(0, Math.round(+rawHwSteps || 0));
+
+  // 偵測裝置是否重啟（新傳來的硬體步數小於上一次的硬體步數，代表板子斷電/按了 RESET 從 0 重算）
+  if (STEP_STATE.lastRawHw !== null && raw < STEP_STATE.lastRawHw) {
+    STEP_STATE.baseSteps = STEP_STATE.todayTotal;
+  }
+
+  STEP_STATE.lastRawHw = raw;
+  const totalToday = Math.max(0, STEP_STATE.baseSteps + raw);
+  STEP_STATE.todayTotal = totalToday;
+  saveStepState();
+  return totalToday;
+}
+
+// 每秒檢查是否跨越 24:00 午夜
+setInterval(checkMidnightRollover, 1000);
 
 function refresh(){if(S.shapeMode==='auto')autoShape();paintShapes();
   const b=bmi();$('bmiV').textContent=b?b.toFixed(1):'--';
@@ -476,6 +576,7 @@ function build(){
   };
   const nbb=nb;$('bubble').textContent=nbb>=24?'太胖了...跳不動🥵':'太瘦了...沒力氣🤕';$('bubble').classList.toggle('hidden',!bad)}
 
+// 旋轉與點擊 (只在畫布上判定)
 let rotY=0,drag=false,moved=false,lx=0;
 const cv=ren.domElement;
 cv.addEventListener('pointerdown',e=>{drag=true;moved=false;lx=e.clientX;cv.setPointerCapture(e.pointerId)});
@@ -504,7 +605,26 @@ function applyData(d){
   S.diet=['standard','vegetarian','fasting168'].includes(d.diet)?d.diet:'standard';
   if(COLORS.includes(d.color))S.color=d.color;
   S.rec=(Array.isArray(d.rec)?d.rec:[]).slice(-200).filter(r=>r&&isFinite(+r.weight)).map(r=>({id:+r.id||Date.now(),time:String(r.time||'').replace(/[^0-9:]/g,'').slice(0,8),weight:+r.weight,bmi:+r.bmi||0}));
-  S.stepRec=(Array.isArray(d.stepRec)?d.stepRec:[]).slice(-30).filter(r=>r&&r.key&&isFinite(+r.steps)).map(r=>({key:String(r.key).slice(0,10),date:String(r.date||'').slice(0,5),steps:+r.steps||0,kcal:+r.kcal||Math.round((+r.steps||0)*0.04)}));
+  const cloudSteps=(Array.isArray(d.stepRec)?d.stepRec:[]).slice(-30).filter(r=>r&&r.key&&isFinite(+r.steps)).map(r=>({key:String(r.key).slice(0,10),date:String(r.date||'').slice(0,5),steps:+r.steps||0,kcal:+r.kcal||Math.round((+r.steps||0)*0.04)}));
+  // 合併本機與雲端的每日步數（同一天取較大值，確保重啟或離線紀錄不遺失）
+  const stepMap = new Map();
+  [...S.stepRec, ...cloudSteps].forEach(r => {
+    const prev = stepMap.get(r.key);
+    if (!prev || r.steps > prev.steps) stepMap.set(r.key, r);
+  });
+  S.stepRec = Array.from(stepMap.values()).sort((a,b)=>a.key.localeCompare(b.key)).slice(-30);
+
+  // 如果雲端有今日已累積的步數且大於本機，自動延續該步數作為基準
+  const { key: curKey } = todayKeys();
+  const todayCloudRec = S.stepRec.find(r => r.key === curKey);
+  if (todayCloudRec && todayCloudRec.steps > STEP_STATE.todayTotal) {
+    const raw = (STEP_STATE.lastRawHw != null) ? STEP_STATE.lastRawHw : 0;
+    STEP_STATE.dateKey = curKey;
+    STEP_STATE.todayTotal = todayCloudRec.steps;
+    STEP_STATE.baseSteps = todayCloudRec.steps - raw;
+    saveStepState();
+  }
+
   document.querySelectorAll('[data-k]').forEach(el=>{const v=S[el.dataset.k];el.value=el.type==='range'?(v||el.dataset.d):(v||'')});
   $('gender').value=S.g;$('act').value=String(S.act);
   paintPal();paintShapes();refresh();save();
@@ -548,10 +668,11 @@ setInterval(()=>{if(U&&!busy){const s=snap();if(s!==lastSnap){lastSnap=s;push()}
 let ACT=null,demo=false,ACT_ERR='';
 const actUrl=id=>`https://firestore.googleapis.com/v1/projects/${CLOUD.projectId}/databases/(default)/documents/activity/${id.slice(0,16)}?key=${CLOUD.apiKey}`;
 function drawAct(){
+  checkMidnightRollover();
   const a=ACT||{},n=v=>(v!=null&&isFinite(+v)&&+v>0)?+v:null;
   const st0=n(a.steps)||0,ts=n(a.ts),fl=n(a.fall);
   const stale=!demo&&!!ts&&new Date(ts*1000).toDateString()!==new Date().toDateString();
-  const st=stale?0:st0;
+  const st=stale?0:(st0 || (!demo ? STEP_STATE.todayTotal : 0));
   const pct=Math.min(100,Math.round(st/8000*100));
   $('aSteps').textContent=st.toLocaleString();$('aBar').style.width=pct+'%';
   $('aPct').textContent='目標 8,000 步 · 已達成 '+pct+'%';$('aKcal').textContent=Math.round(st*0.04);
@@ -560,7 +681,7 @@ function drawAct(){
   if(ACT_ERR)sub='⚠️ '+ACT_ERR;
   else if(bleConnected){
     const m=ts?Math.max(0,Math.round((Date.now()/1000-ts)/60)):0;
-    sub=(U&&cloudOn())?(m<1?'藍牙已連線 · 每 5 秒自動上傳雲端':'藍牙已連線 · '+m+' 分鐘前同步'):'藍牙已連線（登入雲端可每 5 秒上傳）';
+    sub=(U&&cloudOn())?(m<1?'藍牙已連線 · 延續今日步數並每 5 秒同步':'藍牙已連線 · '+m+' 分鐘前同步'):'藍牙已連線 · 重啟自動延續今日步數';
   }
   else if(ts){const m=Math.max(0,Math.round((Date.now()/1000-ts)/60));sub=m<1?'剛剛同步':m<60?m+' 分鐘前同步':new Date(ts*1000).toLocaleString()+' 同步'}
   if(!ACT_ERR&&!bleConnected&&ACT&&!ts)sub='已收到裝置資料';$('actSub').textContent=sub;
@@ -572,12 +693,28 @@ function drawAct(){
   else wEl.style.display='none';
   $('aDemo').textContent=demo?'改看真實資料':'看模擬資料'}
 async function fetchAct(){
+  checkMidnightRollover();
   if(demo)return;
   if(!U){ACT_ERR='請先在「資料」分頁登入雲端';drawAct();return}
   if(!cloudOn())return;
   try{const r=await fetch(actUrl(U.id));
     if(r.status===404){ACT=null;ACT_ERR='雲端還沒有這個裝置代碼的資料：請確認裝置已上傳，且 DEVICE_ID 與下方代碼完全相同'}
-    else if(r.ok){const j=await r.json(),d=JSON.parse(j.fields.data.stringValue);ACT={steps:+d.steps||0,fall:+d.fall||0,ts:+d.ts||0};ACT_ERR='';if(ACT.steps>0)syncDailyStep(ACT.steps,false)}
+    else if(r.ok){
+      const j=await r.json(),d=JSON.parse(j.fields.data.stringValue);
+      const isToday = d.ts && new Date(+d.ts * 1000).toDateString() === new Date().toDateString();
+      const cloudSt = isToday ? (+d.steps || 0) : 0;
+      const mergedSt = Math.max(cloudSt, STEP_STATE.todayTotal);
+      if (mergedSt > STEP_STATE.todayTotal) {
+        const raw = (STEP_STATE.lastRawHw != null) ? STEP_STATE.lastRawHw : 0;
+        STEP_STATE.dateKey = todayKeys().key;
+        STEP_STATE.todayTotal = mergedSt;
+        STEP_STATE.baseSteps = mergedSt - raw;
+        saveStepState();
+      }
+      ACT={steps:mergedSt,fall:+d.fall||0,ts:+d.ts||0};
+      ACT_ERR='';
+      if(ACT.steps>0)syncDailyStep(ACT.steps,false);
+    }
     else ACT_ERR='讀取失敗 HTTP '+r.status+(r.status===403?'（Firestore 規則未開放 activity 集合）':'');
   }catch(e){ACT_ERR='網路錯誤，無法連到雲端'}
   drawAct()}
@@ -587,6 +724,12 @@ function demoAct(){
   demo=true;
   ACT={steps:5000+Math.round(Math.random()*3000),fall:0,ts:0};drawAct()}
 setInterval(()=>{if(S.tab==='act'&&!demo)fetchAct()},5000);
+
+// 初始化顯示本機已延續的今日步數
+if (STEP_STATE.todayTotal > 0) {
+  ACT = { steps: STEP_STATE.todayTotal, fall: 0, ts: Math.floor(Date.now() / 1000) };
+  drawAct();
+}
 
 /* ===== 藍牙 (Web Bluetooth API) 整合與每 5 秒自動上傳 ===== */
 const serviceUuid = "19b10000-e8f2-537e-4f6c-d104768a1214";
@@ -598,6 +741,7 @@ let stepDirty = false;
 let stepUploadBusy = false;
 
 async function uploadStepsEvery5Sec() {
+  checkMidnightRollover();
   if (!bleConnected || !stepDirty || stepUploadBusy || !ACT) return;
   stepUploadBusy = true;
   stepDirty = false;
@@ -629,6 +773,7 @@ async function uploadStepsEvery5Sec() {
   stepUploadBusy = false;
 }
 
+// 每 5 秒上傳一次步數
 setInterval(uploadStepsEvery5Sec, 5000);
 
 document.getElementById('ble-connect-btn').addEventListener('click', async () => {
@@ -659,12 +804,12 @@ document.getElementById('ble-connect-btn').addEventListener('click', async () =>
        bleConnected = false;
        btn.innerText = '+ 連接藍牙';
        btn.className = 'bg-indigo-600 text-white text-xs font-bold px-3 py-2 rounded-xl active:scale-95';
-       toast('🔴 裝置已斷線');
+       toast('🔴 裝置已斷線（今日步數已保留）');
     });
 
     btn.innerText = '🟢 已連線';
     btn.className = 'bg-emerald-500 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-sm';
-    toast('藍牙連接成功！（每 5 秒自動上傳）');
+    toast('藍牙連接成功！（延續今日步數，每 5 秒同步）');
     
   } catch (error) {
     console.error('藍牙連接失敗:', error);
@@ -676,16 +821,22 @@ document.getElementById('ble-connect-btn').addEventListener('click', async () =>
 function handleStepUpdate(event) {
   const value = event.target.value;
   const decoder = new TextDecoder('utf-8');
-  const stepCount = parseInt(decoder.decode(value), 10);
+  const rawStepCount = parseInt(decoder.decode(value), 10);
+  if (isNaN(rawStepCount)) return;
+  
+  // 1. 經過重啟偵測與跨日結算後，計算今日真實累積總步數
+  const totalTodaySteps = processHardwareSteps(rawStepCount);
   
   ACT = ACT || { steps: 0, fall: 0, ts: 0 };
-  if (ACT.steps !== stepCount) {
-    ACT.steps = stepCount;
+  if (ACT.steps !== totalTodaySteps) {
+    ACT.steps = totalTodaySteps;
     stepDirty = true;
+    syncDailyStep(totalTodaySteps, false);
   }
   
   drawAct();
   
+  // 2. 觸發 3D 公仔「持續原地走路」動畫（避免重複重建模型造成動作卡頓）
   if (!S.walk) {
     S.walk = true;
     build();
