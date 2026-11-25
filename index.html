@@ -64,7 +64,7 @@ input[type=number],select{outline:none}
           <div id="cloudOn" class="hidden"><div class="flex items-center justify-between gap-2 text-xs"><span>已登入 <b id="cMask"></b> · 自動儲存中</span><span class="flex gap-2 shrink-0"><button onclick="cloudOut()" class="bg-white/15 px-2.5 py-1 rounded-lg font-bold">登出</button><button onclick="cloudDel()" class="bg-red-500/80 px-2.5 py-1 rounded-lg font-bold">刪除我的資料</button></span></div></div>
           <details class="text-[11px] text-slate-300"><summary class="cursor-pointer font-bold text-slate-200">📄 資料使用說明</summary>
             <ul class="mt-2 space-y-1 list-disc pl-4 leading-relaxed">
-              <li><b>蒐集項目</b>：手機號碼（經雜湊轉換後儲存，不保存明碼）、身高、體重、年齡、性別、三圍、體重紀錄與偏好設定。</li>
+              <li><b>蒐集項目</b>：手機號碼（經雜湊轉換後儲存，不保存明碼）、身高、體重、年齡、性別、三圍、體重與步數紀錄與偏好設定。</li>
               <li><b>使用目的</b>：僅用於讓你在不同裝置還原個人資料，不作行銷、不出售、不提供第三方。</li>
               <li><b>保存方式</b>：儲存於 Google Firebase 雲端，可隨時按「刪除我的資料」永久刪除。</li>
               <li><b>風險提醒</b>：本服務不設密碼，知道你手機號碼的人可能讀取或修改你的資料。請勿輸入不想被他人看到的資訊，如有疑慮請勿使用雲端儲存（不登入仍可正常使用，資料只存在本機）。</li>
@@ -123,7 +123,7 @@ input[type=number],select{outline:none}
         <div id="work" class="bg-blue-50 rounded-2xl p-4 space-y-3"></div>
       </div>
 
-      <!-- 趨勢 -->
+      <!-- 活動 -->
       <div id="t-act" class="tab space-y-4">
         <div class="flex items-center justify-between">
           <div><h2 class="text-base font-black">⌚ 穿戴裝置</h2><p id="actSub" class="text-xs text-slate-400"></p></div>
@@ -135,18 +135,35 @@ input[type=number],select{outline:none}
         </div>
         <div id="wifiOk" style="display:none" class="bg-emerald-50 p-3 rounded-2xl items-center gap-2 text-xs font-bold text-emerald-700">📶 WiFi 已連線</div>
         <div class="bg-gradient-to-br from-indigo-600 to-purple-600 text-white p-4 rounded-2xl"><div class="text-xs font-bold text-indigo-100">今日步數</div><div class="flex items-end gap-2"><span id="aSteps" class="text-4xl font-black">0</span><span class="text-sm mb-1 text-indigo-100">步</span></div><div class="h-2 bg-white/25 rounded-full mt-2 overflow-hidden"><div id="aBar" class="h-full bg-orange-400 rounded-full" style="width:0%"></div></div><div class="flex justify-between text-[11px] mt-1.5 text-indigo-100"><span id="aPct"></span><span>🔥 約 <b id="aKcal">0</b> kcal</span></div></div>
-        <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-xs space-y-2"><div class="font-black text-slate-700">🔌 連接 XIAO ESP32S3 + MPU6050 裝置</div><div class="text-slate-500">登入雲端後，把下面的裝置代碼填入程式開頭的 DEVICE_ID：</div><div class="flex gap-2"><code id="devCode" class="flex-1 min-w-0 break-all bg-white border border-slate-200 rounded-lg p-2 text-[10px]"></code><button onclick="copyCode()" class="bg-indigo-600 text-white font-bold px-3 rounded-lg shrink-0">複製</button></div><div class="text-[11px] text-slate-400">步數僅供參考，可能有誤差，不能取代專業的醫療設備。</div></div>
       </div>
-      <div id="t-trend" class="tab space-y-4">
-        <div class="flex items-center justify-between">
-          <div><h2 class="text-base font-black">體重趨勢</h2><p class="text-xs text-slate-400">每次記錄新增一個時間點</p></div>
-          <div class="flex gap-2">
-            <button onclick="S.rec=[];save();renderTrend()" class="p-2 text-slate-500 bg-slate-100 rounded-xl text-xs font-bold">清空</button>
-            <button onclick="addRec()" class="bg-indigo-600 active:scale-95 text-white text-xs font-bold px-3 py-2 rounded-xl">＋ 記錄體重</button>
+
+      <!-- 趨勢 -->
+      <div id="t-trend" class="tab space-y-5">
+        <!-- 體重趨勢 -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <div><h2 class="text-base font-black">⚖️ 體重趨勢</h2><p class="text-xs text-slate-400">每次記錄新增一個時間點</p></div>
+            <div class="flex gap-2">
+              <button onclick="S.rec=[];save();renderTrend()" class="p-2 text-slate-500 bg-slate-100 rounded-xl text-xs font-bold">清空</button>
+              <button onclick="addRec()" class="bg-indigo-600 active:scale-95 text-white text-xs font-bold px-3 py-2 rounded-xl">＋ 記錄體重</button>
+            </div>
           </div>
+          <div id="chart" class="bg-slate-50 p-4 rounded-2xl border border-slate-100"></div>
+          <div id="hist" class="space-y-2"></div>
         </div>
-        <div id="chart" class="bg-slate-50 p-4 rounded-2xl border border-slate-100"></div>
-        <div id="hist" class="space-y-2"></div>
+
+        <!-- 每日步數趨勢 -->
+        <div class="border-t border-slate-100 pt-5 space-y-3">
+          <div class="flex items-center justify-between">
+            <div><h2 class="text-base font-black">👟 每日步數趨勢</h2><p class="text-xs text-slate-400">連接藍牙自動同步每日步數</p></div>
+            <div class="flex gap-2">
+              <button onclick="S.stepRec=[];save();renderTrend()" class="p-2 text-slate-500 bg-slate-100 rounded-xl text-xs font-bold">清空</button>
+              <button onclick="recordTodaySteps()" class="bg-orange-500 active:scale-95 text-white text-xs font-bold px-3 py-2 rounded-xl">＋ 記錄步數</button>
+            </div>
+          </div>
+          <div id="stepChart" class="bg-slate-50 p-4 rounded-2xl border border-slate-100"></div>
+          <div id="stepHist" class="space-y-2"></div>
+        </div>
       </div>
     </div>
 
@@ -197,9 +214,10 @@ rectangle:['深蹲 + 彈力帶側走 4組','快走 (35分) + 側腹捲腹 4組',
 maintain:['快走或慢跑 30分','核心喚醒：死蟲式+鳥狗式+棒式 (20分)','瑜珈或皮拉提斯 (40分)','恢復：散步 6000步 + 肩頸伸展','彈力帶或輕啞鈴全身 (30分)','騎單車、健行或游泳 (45分)','休息：全身滾筒按摩']};
 const SHAPES=[['apple','🍎 蘋果型','脂肪集中於腹部與上半身'],['pear','🍐 梨型','脂肪集中於臀部與大腿'],['hourglass','⏳ 沙漏型','胸臀豐滿、腰線明顯'],['rectangle','📏 直筒型','上下身均勻、腰線較平']];
 
-const S={h:0,w:0,age:0,c:0,wa:0,hi:0,g:'female',shape:'apple',act:1.2,diet:'standard',rec:[],shapeMode:'manual',color:COLORS[0],anim:false,walk:false,tab:'data'};
+const S={h:0,w:0,age:0,c:0,wa:0,hi:0,g:'female',shape:'apple',act:1.2,diet:'standard',rec:[],stepRec:[],shapeMode:'manual',color:COLORS[0],anim:false,walk:false,tab:'data'};
 try{const r=JSON.parse(localStorage.getItem('hrec')||'[]');if(Array.isArray(r))S.rec=r}catch(e){}
-function save(){try{localStorage.setItem('hrec',JSON.stringify(S.rec))}catch(e){}}
+try{const sr=JSON.parse(localStorage.getItem('hsteprec')||'[]');if(Array.isArray(sr))S.stepRec=sr}catch(e){}
+function save(){try{localStorage.setItem('hrec',JSON.stringify(S.rec));localStorage.setItem('hsteprec',JSON.stringify(S.stepRec))}catch(e){}}
 function toast(t){const e=$('toast');e.textContent=t;e.classList.remove('hidden');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.add('hidden'),2500)}
 
 // ---------- UI 組裝 ----------
@@ -253,6 +271,28 @@ function addRec(){
   S.rec.push({id:Date.now(),time:`${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())}`,weight:+S.w.toFixed(1),bmi:+bmi().toFixed(1)});
   save();toast(`已成功記錄 ${S.w.toFixed(1)} kg！`);if(S.tab==='trend')renderTrend()}
 
+function todayKeys(){
+  const n=new Date(),p=x=>String(x).padStart(2,'0');
+  return {key:`${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())}`,date:`${p(n.getMonth()+1)}/${p(n.getDate())}`};
+}
+function syncDailyStep(steps,notify=false){
+  const st=Math.max(0,Math.round(+steps||0));
+  if(st<=0){if(notify)toast('目前今日步數為 0，請先走幾步再記錄喔！');return}
+  const {key,date}=todayKeys();
+  const kcal=Math.round(st*0.04);
+  const idx=S.stepRec.findIndex(r=>r.key===key);
+  if(idx>=0){S.stepRec[idx].steps=st;S.stepRec[idx].kcal=kcal;S.stepRec[idx].date=date}
+  else{S.stepRec.push({key,date,steps:st,kcal})}
+  if(S.stepRec.length>30)S.stepRec=S.stepRec.slice(-30);
+  save();
+  if(notify)toast(`已記錄今日 ${st.toLocaleString()} 步！`);
+  if(S.tab==='trend')renderTrend();
+}
+function recordTodaySteps(){
+  const st=(ACT&&+ACT.steps)||0;
+  syncDailyStep(st,true);
+}
+
 function refresh(){if(S.shapeMode==='auto')autoShape();paintShapes();
   const b=bmi();$('bmiV').textContent=b?b.toFixed(1):'--';
   let st=['等待輸入','bg-slate-200 text-slate-500'];
@@ -287,7 +327,38 @@ function renderTrend(){
     const ws=R.map(r=>r.weight),mn=Math.min(...ws)-1,mx=Math.max(...ws)+1,rg=Math.max(1,mx-mn),W=320,H=140,px=28,py=24;
     const P=R.map((r,i)=>({x:px+i/(R.length-1)*(W-2*px),y:H-py-(r.weight-mn)/rg*(H-2*py),r}));
     $('chart').innerHTML=`<svg viewBox="0 0 ${W} ${H}" class="w-full h-40 overflow-visible"><line x1="${px}" y1="${py}" x2="${W-px}" y2="${py}" stroke="#e2e8f0" stroke-dasharray="3 3"/><line x1="${px}" y1="${H-py}" x2="${W-px}" y2="${H-py}" stroke="#e2e8f0" stroke-dasharray="3 3"/><polyline fill="none" stroke="#4f46e5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" points="${P.map(p=>p.x+','+p.y).join(' ')}"/>${P.map((p,i)=>`<circle cx="${p.x}" cy="${p.y}" r="4.5" fill="#fff" stroke="#4f46e5" stroke-width="3"/><text x="${p.x}" y="${p.y-10}" text-anchor="middle" font-size="10" font-weight="bold" fill="#334155">${p.r.weight}</text>${(i==0||i==P.length-1||P.length<=5)?`<text x="${p.x}" y="${H-6}" text-anchor="middle" font-size="9" fill="#94a3b8">${p.r.time}</text>`:''}`).join('')}</svg>`}
-  $('hist').innerHTML=R.length?`<h3 class="text-xs font-bold text-slate-400">歷史明細 (${R.length})</h3>`+[...R].reverse().map(r=>`<div class="bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-100 flex justify-between items-center"><span class="text-xs font-bold text-slate-500">${r.time}</span><span class="flex items-center gap-3"><b class="text-sm font-black">${r.weight} kg</b>${r.bmi>0?`<span class="text-[11px] font-bold px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-md">BMI ${r.bmi}</span>`:''}</span></div>`).join(''):''}
+  $('hist').innerHTML=R.length?`<h3 class="text-xs font-bold text-slate-400">歷史體重明細 (${R.length})</h3>`+[...R].reverse().map(r=>`<div class="bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-100 flex justify-between items-center"><span class="text-xs font-bold text-slate-500">${r.time}</span><span class="flex items-center gap-3"><b class="text-sm font-black">${r.weight} kg</b>${r.bmi>0?`<span class="text-[11px] font-bold px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-md">BMI ${r.bmi}</span>`:''}</span></div>`).join(''):'';
+
+  const SR=S.stepRec.slice(-7);
+  if(!SR.length){
+    $('stepChart').innerHTML=`<div class="h-40 flex flex-col items-center justify-center text-center"><div class="text-2xl mb-2">👟</div><div class="text-sm font-bold text-slate-700 mb-1">尚無每日步數紀錄</div><div class="text-xs text-slate-400">連接藍牙走路或點「記錄步數」開始追蹤</div></div>`;
+  }else{
+    const maxS=Math.max(8000,...SR.map(r=>r.steps)),W=320,H=145,px=24,topY=24,botY=120,chartH=botY-topY;
+    const goalY=botY-(8000/maxS)*chartH;
+    const slot=(W-2*px)/SR.length,barW=Math.min(26,slot*0.55);
+    const bars=SR.map((r,i)=>{
+      const cx=px+slot*(i+0.5);
+      const bh=Math.max(4,(r.steps/maxS)*chartH);
+      const by=botY-bh;
+      const fill=r.steps>=8000?'#10b981':'#f97316';
+      return `<rect x="${cx-barW/2}" y="${by}" width="${barW}" height="${bh}" rx="6" fill="${fill}"/>`+
+             `<text x="${cx}" y="${by-6}" text-anchor="middle" font-size="9" font-weight="bold" fill="#334155">${r.steps.toLocaleString()}</text>`+
+             `<text x="${cx}" y="${H-6}" text-anchor="middle" font-size="9" fill="#94a3b8">${r.date}</text>`;
+    }).join('');
+    $('stepChart').innerHTML=`<svg viewBox="0 0 ${W} ${H}" class="w-full h-40 overflow-visible">`+
+      `<line x1="${px}" y1="${goalY}" x2="${W-px}" y2="${goalY}" stroke="#cbd5e1" stroke-dasharray="3 3"/>`+
+      `<text x="${W-px}" y="${goalY-4}" text-anchor="end" font-size="8" font-weight="bold" fill="#94a3b8">目標 8,000</text>`+
+      `<line x1="${px}" y1="${botY}" x2="${W-px}" y2="${botY}" stroke="#e2e8f0"/>`+
+      bars+`</svg>`;
+  }
+  $('stepHist').innerHTML=S.stepRec.length?`<h3 class="text-xs font-bold text-slate-400">每日步數明細 (${S.stepRec.length} 天)</h3>`+[...S.stepRec].reverse().map(r=>{
+    const pct=Math.min(100,Math.round(r.steps/8000*100));
+    const badge=r.steps>=8000
+      ?`<span class="text-[11px] font-bold px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-md">達標 🎉</span>`
+      :`<span class="text-[11px] font-bold px-2 py-0.5 bg-orange-50 text-orange-600 rounded-md">${pct}%</span>`;
+    return `<div class="bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-100 flex justify-between items-center"><span class="text-xs font-bold text-slate-500">${r.date}</span><span class="flex items-center gap-2.5"><span class="text-[11px] text-slate-400">🔥 ${r.kcal||Math.round(r.steps*0.04)} kcal</span><b class="text-sm font-black">${r.steps.toLocaleString()} 步</b>${badge}</span></div>`;
+  }).join(''):'';
+}
 
 // ---------- 3D ----------
 const mount=$('mount');
@@ -345,7 +416,6 @@ function build(){
   const pb=at(new THREE.Mesh(new THREE.CylinderGeometry(.19,.19,.02,32,1,false,0,Math.PI),mt.white),0,.1,-.005);pb.rotation.set(Math.PI/2,Math.PI/2,0);pk.add(pb);model.add(pk);
   const shX=.43*sC+.08,maxR=Math.max(.5*sC,.56*sB,.56*sH),nat=.22+Math.atan2(Math.max(0,maxR-shX)+.08,.7);
   
-  // 建立手臂和腿，保留它們的參考以便在動畫中旋轉
   const limbs = { armL: null, armR: null, legL: null, legR: null };
   
   const arm=side=>{
@@ -377,29 +447,24 @@ function build(){
   avatar.add(model);
   const t0=Date.now();
   
-  // 核心動畫更新函式
   upd=()=>{const t=(Date.now()-t0)/1e3;let a;
     if(S.walk) {
-        // --- 走路動畫：擺手與抬腿 ---
         model.position.y = -1;
         model.position.x = 0;
-        const speed = 8; // 走路動畫速度
+        const speed = 8;
         const swing = Math.sin(t * speed);
         const swingArms = swing * 0.8;
         const swingLegs = swing * 0.6;
         
-        // 手臂前後擺動
         aL.root.rotation.x = swingArms;
         aR.root.rotation.x = -swingArms;
         aL.root.rotation.z = nat;
         aR.root.rotation.z = -nat;
         
-        // 腿部前後擺動
         limbs.legL.rotation.x = -swingLegs;
         limbs.legR.rotation.x = swingLegs;
         
     } else if(S.anim){
-        // --- 原本的歡呼/跌倒跳躍動畫 ---
         if(bad){model.position.x=Math.sin(t*40)*.03;model.position.y=-1;a=nat+.35+Math.sin(t*25)*.12}
         else{model.position.y=-1+Math.abs(Math.sin(t*6))*.4;a=2.55+Math.sin(t*12)*.22}
         aL.root.rotation.x = 0; aR.root.rotation.x = 0;
@@ -407,7 +472,6 @@ function build(){
         limbs.legL.rotation.x = 0; limbs.legR.rotation.x = 0;
     }
     else{
-        // --- 靜止待機呼吸動畫 ---
         model.position.y=-1+Math.sin(t*2)*.02;model.position.x=0;a=nat+Math.sin(t*2)*.035;
         aL.root.rotation.x = 0; aR.root.rotation.x = 0;
         aL.root.rotation.z=a; aR.root.rotation.z=-a;
@@ -435,7 +499,7 @@ let U=null,lastSnap='',busy=false;
 const docUrl=id=>`https://firestore.googleapis.com/v1/projects/${CLOUD.projectId}/databases/(default)/documents/profiles/${id}?key=${CLOUD.apiKey}`;
 const cmsg=t=>{$('cMsg').textContent=t};
 async function sha(p){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('3dhealth:'+p));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
-function snap(){return JSON.stringify({h:S.h,w:S.w,age:S.age,c:S.c,wa:S.wa,hi:S.hi,g:S.g,shape:S.shape,shapeMode:S.shapeMode,act:S.act,diet:S.diet,color:S.color,rec:S.rec})}
+function snap(){return JSON.stringify({h:S.h,w:S.w,age:S.age,c:S.c,wa:S.wa,hi:S.hi,g:S.g,shape:S.shape,shapeMode:S.shapeMode,act:S.act,diet:S.diet,color:S.color,rec:S.rec,stepRec:S.stepRec})}
 function applyData(d){
   ['h','w','age','c','wa','hi'].forEach(k=>{const v=+d[k];S[k]=isFinite(v)&&v>0&&v<1000?v:0});
   S.act=[1.2,1.375,1.55,1.725].includes(+d.act)?+d.act:1.2;
@@ -445,6 +509,7 @@ function applyData(d){
   S.diet=['standard','vegetarian','fasting168'].includes(d.diet)?d.diet:'standard';
   if(COLORS.includes(d.color))S.color=d.color;
   S.rec=(Array.isArray(d.rec)?d.rec:[]).slice(-200).filter(r=>r&&isFinite(+r.weight)).map(r=>({id:+r.id||Date.now(),time:String(r.time||'').replace(/[^0-9:]/g,'').slice(0,8),weight:+r.weight,bmi:+r.bmi||0}));
+  S.stepRec=(Array.isArray(d.stepRec)?d.stepRec:[]).slice(-30).filter(r=>r&&r.key&&isFinite(+r.steps)).map(r=>({key:String(r.key).slice(0,10),date:String(r.date||'').slice(0,5),steps:+r.steps||0,kcal:+r.kcal||Math.round((+r.steps||0)*0.04)}));
   document.querySelectorAll('[data-k]').forEach(el=>{const v=S[el.dataset.k];el.value=el.type==='range'?(v||el.dataset.d):(v||'')});
   $('gender').value=S.g;$('act').value=String(S.act);
   paintPal();paintShapes();refresh();save();
@@ -497,11 +562,6 @@ function drawAct(){
   $('aPct').textContent='目標 8,000 步 · 已達成 '+pct+'%';$('aKcal').textContent=Math.round(st*0.04);
   let sub='尚未收到裝置資料';
   
-  // ==========================================
-  // 【修正重點】移除 demo 變數的判斷，讓藍牙接收到的真實步數可以直接顯示，而不會被判定成「模擬資料」。
-  // ==========================================
-  // if(demo)sub='模擬資料（非真實裝置）'; 
-  
   if(ACT_ERR)sub='⚠️ '+ACT_ERR;
   else if(ts){const m=Math.max(0,Math.round((Date.now()/1000-ts)/60));sub=m<1?'剛剛同步':m<60?m+' 分鐘前同步':new Date(ts*1000).toLocaleString()+' 同步'}
   if(!ACT_ERR&&ACT&&!ts)sub='已收到裝置資料';$('actSub').textContent=sub;
@@ -511,7 +571,6 @@ function drawAct(){
   if(wifiOn){wEl.className='bg-emerald-50 p-3 rounded-2xl flex items-center gap-2 text-xs font-bold text-emerald-700';wEl.textContent='📶 WiFi 已連線';wEl.style.display='flex'}
   else if(wifiOff){wEl.className='bg-red-50 p-3 rounded-2xl flex items-center gap-2 text-xs font-bold text-red-600';wEl.textContent='📵 WiFi 已斷線';wEl.style.display='flex'}
   else wEl.style.display='none';
-  $('devCode').textContent=U?U.id.slice(0,16):'請先在「資料」分頁登入雲端';
   $('aDemo').textContent=demo?'改看真實資料':'看模擬資料'}
 async function fetchAct(){
   if(demo)return;
@@ -519,7 +578,7 @@ async function fetchAct(){
   if(!cloudOn())return;
   try{const r=await fetch(actUrl(U.id));
     if(r.status===404){ACT=null;ACT_ERR='雲端還沒有這個裝置代碼的資料：請確認裝置已上傳，且 DEVICE_ID 與下方代碼完全相同'}
-    else if(r.ok){const j=await r.json(),d=JSON.parse(j.fields.data.stringValue);ACT={steps:+d.steps||0,fall:+d.fall||0,ts:+d.ts||0};ACT_ERR=''}
+    else if(r.ok){const j=await r.json(),d=JSON.parse(j.fields.data.stringValue);ACT={steps:+d.steps||0,fall:+d.fall||0,ts:+d.ts||0};ACT_ERR='';if(ACT.steps>0)syncDailyStep(ACT.steps,false)}
     else ACT_ERR='讀取失敗 HTTP '+r.status+(r.status===403?'（Firestore 規則未開放 activity 集合）':'');
   }catch(e){ACT_ERR='網路錯誤，無法連到雲端'}
   drawAct()}
@@ -528,15 +587,14 @@ function demoAct(){
   if(demo){demo=false;ACT=null;renderAct();return}
   demo=true;
   ACT={steps:5000+Math.round(Math.random()*3000),fall:0,ts:0};drawAct()}
-function copyCode(){if(U&&navigator.clipboard)navigator.clipboard.writeText(U.id.slice(0,16)).then(()=>toast('已複製裝置代碼')).catch(()=>{})}
 setInterval(()=>{if(S.tab==='act'&&!demo)fetchAct()},15000);
 
 /* ===== 藍牙 (Web Bluetooth API) 整合 ===== */
 const serviceUuid = "19b10000-e8f2-537e-4f6c-d104768a1214";
 const stepCharUuid = "19b10001-e8f2-537e-4f6c-d104768a1214";
 let bleDevice;
-let walkTimer = null; // 控制走路動畫的計時器
-let bleConnected = false; // 新增藍牙連線狀態標記
+let walkTimer = null;
+let bleConnected = false;
 
 document.getElementById('ble-connect-btn').addEventListener('click', async () => {
   const btn = document.getElementById('ble-connect-btn');
@@ -555,8 +613,8 @@ document.getElementById('ble-connect-btn').addEventListener('click', async () =>
     await stepCharacteristic.startNotifications();
     stepCharacteristic.addEventListener('characteristicvaluechanged', handleStepUpdate);
     
-    bleConnected = true; // 標記為已連線
-    demo = false;        // 確保關閉模擬資料模式
+    bleConnected = true;
+    demo = false;
 
     bleDevice.addEventListener('gattserverdisconnected', () => {
        bleConnected = false;
@@ -581,33 +639,31 @@ function handleStepUpdate(event) {
   const decoder = new TextDecoder('utf-8');
   const stepCount = parseInt(decoder.decode(value), 10);
   
-  // 1. 更新頁面狀態 (不開啟 demo 模式)
+  // 1. 更新頁面狀態與每日步數趨勢
   ACT = ACT || { steps: 0, fall: 0, ts: 0 };
   ACT.steps = stepCount;
   ACT.ts = Math.floor(Date.now() / 1000);
   
   drawAct();
+  syncDailyStep(stepCount, false);
   
   // 2. 觸發 3D 公仔「原地走路」動畫
-  S.walk = true; // 開啟走路模式
+  S.walk = true;
   build();
   
-  // 如果已經有計時器在倒數，就先清除掉 (重新計時 1.5 秒)
   if (walkTimer) {
       clearTimeout(walkTimer);
   }
   
-  // 設定 1.5 秒後停止走路
   walkTimer = setTimeout(() => { 
       S.walk = false; 
       build(); 
   }, 1500);
 }
 
-// 覆蓋原本的 fetchAct，當藍牙連線時暫停去雲端抓資料，以免步數被舊資料覆蓋
 const originalFetchAct = fetchAct;
 fetchAct = async function() {
-    if(bleConnected) return; // 如果藍牙連線中，就不去雲端抓資料
+    if(bleConnected) return;
     return originalFetchAct();
 };
 </script>
