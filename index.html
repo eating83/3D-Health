@@ -18,6 +18,22 @@ input[type=number],select{outline:none}
 </style>
 </head>
 <body>
+
+<!-- 跌倒警示 Modal (預設隱藏) -->
+<div id="fallAlert" class="hidden fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 transition-opacity duration-300">
+  <div class="bg-white rounded-3xl p-6 max-w-sm w-full text-center shadow-2xl border-4 border-red-500">
+    <div class="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 animate-[bounce_1s_infinite]">
+      <span class="text-4xl">⚠️</span>
+    </div>
+    <h2 class="text-3xl font-black text-slate-800 mb-2">偵測到跌倒！</h2>
+    <p class="text-sm font-bold text-slate-500 mb-6">系統偵測到超過 10g 的異常劇烈震動<br>請確認您的安全狀態。</p>
+    <button onclick="dismissFallAlert()" class="w-full bg-red-600 active:scale-95 text-white font-black py-4 rounded-xl shadow-md text-lg">我沒事，關閉警示</button>
+  </div>
+</div>
+
+<!-- 跌倒警報音效 -->
+<!-- 這裡使用瀏覽器內建的 Web Audio API 來產生合成音，不依賴外部音檔 -->
+
 <div id="cover" class="fixed inset-0 z-[100] flex flex-col items-center justify-center text-white overflow-hidden" style="background:linear-gradient(160deg,#0f172a 0%,#1e1b4b 55%,#4f46e5 100%);transition:opacity .5s,transform .5s;padding-top:env(safe-area-inset-top,0px)">
 <style>@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}@keyframes pulse2{0%,100%{box-shadow:0 0 0 0 rgba(249,115,22,.6)}50%{box-shadow:0 0 0 14px rgba(249,115,22,0)}}</style>
 <div class="absolute inset-0 opacity-20" style="background:repeating-linear-gradient(-55deg,transparent 0 28px,#f97316 28px 36px)"></div>
@@ -29,7 +45,7 @@ input[type=number],select{outline:none}
 <h1 class="text-5xl font-black italic leading-tight" style="transform:skew(-6deg)">3D 體態<br><span class="text-orange-400">管理</span></h1>
 <p class="mt-4 text-sm font-bold text-slate-300">BMI · 三圍 · 飲食 · 運動 · 趨勢追蹤</p>
 <div class="flex gap-2 mt-6 text-[11px] font-black italic"><span class="px-3 py-1 rounded-full bg-white/10 border border-white/20">💪 塑形</span><span class="px-3 py-1 rounded-full bg-white/10 border border-white/20">🔥 燃脂</span><span class="px-3 py-1 rounded-full bg-white/10 border border-white/20">⚡ 健康</span></div>
-<button onclick="var c=document.getElementById('cover');c.style.opacity=0;c.style.transform='scale(1.06)';c.style.pointerEvents='none';setTimeout(function(){c.remove()},500)" class="mt-10 bg-orange-500 active:scale-95 text-white text-lg font-black italic tracking-wider px-12 py-4 rounded-2xl" style="transform:skew(-6deg);animation:pulse2 1.8s infinite">開始訓練 ▶</button>
+<button onclick="initAudio(); var c=document.getElementById('cover');c.style.opacity=0;c.style.transform='scale(1.06)';c.style.pointerEvents='none';setTimeout(function(){c.remove()},500)" class="mt-10 bg-orange-500 active:scale-95 text-white text-lg font-black italic tracking-wider px-12 py-4 rounded-2xl" style="transform:skew(-6deg);animation:pulse2 1.8s infinite">開始訓練 ▶</button>
 <p class="mt-5 text-[11px] text-slate-400">動起來，雕塑更好的自己</p>
 </div></div>
 <div class="h-full w-full flex flex-col overflow-hidden">
@@ -133,8 +149,20 @@ input[type=number],select{outline:none}
             <button id="aDemo" onclick="demoAct()" class="bg-slate-100 text-slate-600 text-xs font-bold px-2.5 py-2 rounded-xl">看模擬資料</button>
           </div>
         </div>
-        <div id="wifiOk" style="display:none" class="bg-emerald-50 p-3 rounded-2xl items-center gap-2 text-xs font-bold text-emerald-700">🔵 藍牙已連接</div>
-        <div class="bg-gradient-to-br from-indigo-600 to-purple-600 text-white p-4 rounded-2xl"><div class="text-xs font-bold text-indigo-100">今日步數</div><div class="flex items-end gap-2"><span id="aSteps" class="text-4xl font-black">0</span><span class="text-sm mb-1 text-indigo-100">步</span></div><div class="h-2 bg-white/25 rounded-full mt-2 overflow-hidden"><div id="aBar" class="h-full bg-orange-400 rounded-full" style="width:0%"></div></div><div class="flex justify-between text-[11px] mt-1.5 text-indigo-100"><span id="aPct"></span><span>🔥 約 <b id="aKcal">0</b> kcal</span></div></div>
+        <div id="wifiOk" style="display:none" class="bg-emerald-50 p-3 rounded-2xl items-center gap-2 text-xs font-bold text-emerald-700">📶 WiFi 已連線</div>
+        
+        <div class="bg-gradient-to-br from-indigo-600 to-purple-600 text-white p-4 rounded-2xl">
+          <div class="flex justify-between items-start">
+            <div class="text-xs font-bold text-indigo-100">今日步數</div>
+            <div id="fallBadge" class="hidden bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full animate-pulse shadow-md">曾偵測到跌倒</div>
+          </div>
+          <div class="flex items-end gap-2 mt-1">
+            <span id="aSteps" class="text-4xl font-black">0</span>
+            <span class="text-sm mb-1 text-indigo-100">步</span>
+          </div>
+          <div class="h-2 bg-white/25 rounded-full mt-2 overflow-hidden"><div id="aBar" class="h-full bg-orange-400 rounded-full" style="width:0%"></div></div>
+          <div class="flex justify-between text-[11px] mt-1.5 text-indigo-100"><span id="aPct"></span><span>🔥 約 <b id="aKcal">0</b> kcal</span></div>
+        </div>
       </div>
 
       <!-- 趨勢 -->
@@ -361,7 +389,7 @@ function checkMidnightRollover() {
     saveStepState();
 
     if (!demo) {
-      ACT = { steps: 0, fall: 0, ts: Math.floor(Date.now() / 1000) };
+      if(ACT) ACT.steps = 0;
       stepDirty = true;
       drawAct();
     }
@@ -676,8 +704,12 @@ function drawAct(){
   const pct=Math.min(100,Math.round(st/8000*100));
   $('aSteps').textContent=st.toLocaleString();$('aBar').style.width=pct+'%';
   $('aPct').textContent='目標 8,000 步 · 已達成 '+pct+'%';$('aKcal').textContent=Math.round(st*0.04);
-  let sub='尚未收到裝置資料';
   
+  if (fl > 0) {
+    $('fallBadge').classList.remove('hidden');
+  }
+
+  let sub='尚未收到裝置資料';
   if(ACT_ERR)sub='⚠️ '+ACT_ERR;
   else if(bleConnected){
     const m=ts?Math.max(0,Math.round((Date.now()/1000-ts)/60)):0;
@@ -685,11 +717,11 @@ function drawAct(){
   }
   else if(ts){const m=Math.max(0,Math.round((Date.now()/1000-ts)/60));sub=m<1?'剛剛同步':m<60?m+' 分鐘前同步':new Date(ts*1000).toLocaleString()+' 同步'}
   if(!ACT_ERR&&!bleConnected&&ACT&&!ts)sub='已收到裝置資料';$('actSub').textContent=sub;
-  const wifiOn=bleConnected;
-  const wifiOff=!wifiOn&&(!!bleDevice||(!!ts&&!ACT_ERR));
+  const wifiOn=!ACT_ERR&&!!ts&&(Date.now()/1000-ts)<150;
+  const wifiOff=!wifiOn&&((!!ts&&!ACT_ERR)||(ACT_ERR.indexOf('雲端還沒有')===0));
   const wEl=$('wifiOk');
-  if(wifiOn){wEl.className='bg-emerald-50 p-3 rounded-2xl flex items-center gap-2 text-xs font-bold text-emerald-700';wEl.textContent='🔵 藍牙已連接';wEl.style.display='flex'}
-  else if(wifiOff){wEl.className='bg-red-50 p-3 rounded-2xl flex items-center gap-2 text-xs font-bold text-red-600';wEl.textContent='🔴 藍牙已斷線';wEl.style.display='flex'}
+  if(wifiOn){wEl.className='bg-emerald-50 p-3 rounded-2xl flex items-center gap-2 text-xs font-bold text-emerald-700';wEl.textContent='📶 WiFi 已連線';wEl.style.display='flex'}
+  else if(wifiOff){wEl.className='bg-red-50 p-3 rounded-2xl flex items-center gap-2 text-xs font-bold text-red-600';wEl.textContent='📵 WiFi 已斷線';wEl.style.display='flex'}
   else wEl.style.display='none';
   $('aDemo').textContent=demo?'改看真實資料':'看模擬資料'}
 async function fetchAct(){
@@ -725,22 +757,57 @@ function demoAct(){
   ACT={steps:5000+Math.round(Math.random()*3000),fall:0,ts:0};drawAct()}
 setInterval(()=>{if(S.tab==='act'&&!demo)fetchAct()},5000);
 
-/* 這些變數必須在 drawAct() 第一次被呼叫之前宣告，否則會 TDZ 錯誤 */
+/* ===== 藍牙 (Web Bluetooth API) 整合與每 5 秒自動上傳 ===== */
+const serviceUuid = "19b10000-e8f2-537e-4f6c-d104768a1214";
+const stepCharUuid = "19b10001-e8f2-537e-4f6c-d104768a1214";
 let bleDevice;
 let walkTimer = null;
 let bleConnected = false;
 let stepDirty = false;
 let stepUploadBusy = false;
 
-// 初始化顯示本機已延續的今日步數
-if (STEP_STATE.todayTotal > 0) {
-  ACT = { steps: STEP_STATE.todayTotal, fall: 0, ts: Math.floor(Date.now() / 1000) };
+// ===== Web Audio API 警報音效 =====
+let audioCtx = null;
+function initAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+}
+function playBeep(startTime) {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'square';
+  osc.frequency.setValueAtTime(880, startTime); // 880Hz 音高
+  gain.gain.setValueAtTime(0.5, startTime); // 音量
+  gain.gain.exponentialRampToValueAtTime(0.01, startTime + 0.1);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(startTime);
+  osc.stop(startTime + 0.15);
+}
+function playFallAlarm() {
+  if (!audioCtx) initAudio();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  const now = audioCtx.currentTime;
+  playBeep(now);
+  playBeep(now + 0.3);
+  playBeep(now + 0.6);
+}
+
+function triggerFallAlert() {
+  $('fallAlert').classList.remove('hidden');
+  playFallAlarm(); // 觸發手機端 3 聲逼逼聲
+  ACT = ACT || { steps: 0, fall: 0, ts: 0 };
+  ACT.fall = (ACT.fall || 0) + 1;
+  ACT.ts = Math.floor(Date.now() / 1000);
+  stepDirty = true;
   drawAct();
 }
 
-/* ===== 藍牙 (Web Bluetooth API) 整合與每 5 秒自動上傳 ===== */
-const serviceUuid = "19b10000-e8f2-537e-4f6c-d104768a1214";
-const stepCharUuid = "19b10001-e8f2-537e-4f6c-d104768a1214";
+function dismissFallAlert() {
+  $('fallAlert').classList.add('hidden');
+}
 
 async function uploadStepsEvery5Sec() {
   checkMidnightRollover();
@@ -760,7 +827,7 @@ async function uploadStepsEvery5Sec() {
             data: {
               stringValue: JSON.stringify({
                 steps: ACT.steps,
-                fall: 0,
+                fall: ACT.fall || 0,
                 ts: nowTs
               })
             }
@@ -779,8 +846,9 @@ async function uploadStepsEvery5Sec() {
 setInterval(uploadStepsEvery5Sec, 5000);
 
 document.getElementById('ble-connect-btn').addEventListener('click', async () => {
+  initAudio(); // 確保 AudioContext 被使用者點擊解鎖
   if (!navigator.bluetooth) {
-    toast(/iPhone|iPad|iPod/.test(navigator.userAgent)?'⚠️ iPhone 請改用 Bluefy 瀏覽器開啟網頁！':'⚠️ 此瀏覽器不支援藍牙，請改用 Chrome 或 Edge');
+    toast('⚠️ iPhone 請改用 Bluefy 瀏覽器開啟網頁！');
     return;
   }
   const btn = document.getElementById('ble-connect-btn');
@@ -807,13 +875,11 @@ document.getElementById('ble-connect-btn').addEventListener('click', async () =>
        btn.innerText = '+ 連接藍牙';
        btn.className = 'bg-indigo-600 text-white text-xs font-bold px-3 py-2 rounded-xl active:scale-95';
        toast('🔴 裝置已斷線（今日步數已保留）');
-       drawAct();
     });
 
     btn.innerText = '🟢 已連線';
     btn.className = 'bg-emerald-500 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-sm';
     toast('藍牙連接成功！（延續今日步數，每 5 秒同步）');
-    drawAct();
     
   } catch (error) {
     console.error('藍牙連接失敗:', error);
@@ -825,7 +891,14 @@ document.getElementById('ble-connect-btn').addEventListener('click', async () =>
 function handleStepUpdate(event) {
   const value = event.target.value;
   const decoder = new TextDecoder('utf-8');
-  const rawStepCount = parseInt(decoder.decode(value), 10);
+  const rawString = decoder.decode(value).trim();
+  
+  if (rawString === "FALL") {
+    triggerFallAlert();
+    return;
+  }
+
+  const rawStepCount = parseInt(rawString, 10);
   if (isNaN(rawStepCount)) return;
   
   // 1. 經過重啟偵測與跨日結算後，計算今日真實累積總步數
@@ -840,7 +913,7 @@ function handleStepUpdate(event) {
   
   drawAct();
   
-  // 2. 觸發 3D 公仔「持續原地走路」動畫（避免重複重建模型造成動作卡頓）
+  // 2. 觸發 3D 公仔「持續原地走路」動畫
   if (!S.walk) {
     S.walk = true;
     build();
