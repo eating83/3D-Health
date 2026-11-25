@@ -199,6 +199,9 @@ input[type=number],select{outline:none}
 </div>
 
 <script>
+// (1) 防報錯：如果網頁在非藍牙支援環境（例如電腦某些舊版瀏覽器、沒有藍牙硬體）
+// 或被安全擋下而報錯，我們依然確保其他 UI 能正常初始化
+try {
 const $=id=>document.getElementById(id);
 const COLORS=['#4f46e5','#ec4899','#10b981','#f97316','#1f2937'];
 const SLOGANS=["汗水是脂肪哭泣的眼淚，繼續加油！","今天的努力，是為了明天更美的自己。","別放棄，你的潛力比你想像的還要大！","好身材不是天生，是你的自律給的。","每一次運動，都在重新雕塑你的未來。","管住嘴，邁開腿，完美體態在向你招手！","慢慢來比較快，堅持才是最後的贏家。","將健康變成習慣，而不是短暫的目標。","就算只進步一點點，也比站在原地好。","現在放棄的話，比賽就結束了喔！"];
@@ -244,8 +247,8 @@ const SHAPES=[['apple','🍎 蘋果型','脂肪集中於腹部與上半身'],['p
 const S={h:0,w:0,age:0,c:0,wa:0,hi:0,g:'female',shape:'apple',act:1.2,diet:'standard',rec:[],stepRec:[],shapeMode:'manual',color:COLORS[0],anim:false,walk:false,tab:'data'};
 try{const r=JSON.parse(localStorage.getItem('hrec')||'[]');if(Array.isArray(r))S.rec=r}catch(e){}
 try{const sr=JSON.parse(localStorage.getItem('hsteprec')||'[]');if(Array.isArray(sr))S.stepRec=sr}catch(e){}
-function save(){try{localStorage.setItem('hrec',JSON.stringify(S.rec));localStorage.setItem('hsteprec',JSON.stringify(S.stepRec))}catch(e){}}
-function toast(t){const e=$('toast');e.textContent=t;e.classList.remove('hidden');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.add('hidden'),2500)}
+window.save = function(){try{localStorage.setItem('hrec',JSON.stringify(S.rec));localStorage.setItem('hsteprec',JSON.stringify(S.stepRec))}catch(e){}}
+window.toast = function(t){const e=$('toast');e.textContent=t;e.classList.remove('hidden');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.add('hidden'),2500)}
 
 // ---------- UI 組裝 ----------
 $('pal').innerHTML=COLORS.map(c=>`<button data-c="${c}" class="w-6 h-6 rounded-full border-2 border-transparent" style="background:${c}"></button>`).join('');
@@ -291,8 +294,9 @@ function autoShape(){
   else if(Math.abs(c-hi)<=7&&(c-wa>=18||hi-wa>=20))d='hourglass';
   S.shape=d;return true}
 function setMode(m){S.shapeMode=m;refresh()}
+window.setMode = setMode;
 $('modeSw').onclick=e=>{const m=e.target.dataset.m;if(m)setMode(m)};
-function addRec(){
+window.addRec = function(){
   if(S.w<=0){toast('請先輸入有效的體重數值喔！');return}
   const n=new Date(),p=x=>String(x).padStart(2,'0');
   S.rec.push({id:Date.now(),time:`${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())}`,weight:+S.w.toFixed(1),bmi:+bmi().toFixed(1)});
@@ -360,9 +364,10 @@ function syncDailyStep(steps, notify=false){
   if(S.tab === 'trend') renderTrend();
 }
 
-function recordTodaySteps(){
+window.recordTodaySteps = function(){
   checkMidnightRollover();
-  const st = Math.max((ACT && +ACT.steps) || 0, STEP_STATE.todayTotal || 0);
+  // 注意，這裡需要存取 ACT 變數，等下宣告
+  const st = Math.max((window.ACT && +window.ACT.steps) || 0, STEP_STATE.todayTotal || 0);
   syncDailyStep(st, true);
 }
 
@@ -387,10 +392,10 @@ function checkMidnightRollover() {
     };
     saveStepState();
 
-    if (!demo) {
-      if(ACT) ACT.steps = 0;
-      stepDirty = true;
-      drawAct();
+    if (!window.demo) {
+      if(window.ACT) window.ACT.steps = 0;
+      window.stepDirty = true;
+      if(window.drawAct) window.drawAct();
     }
     if (S.tab === 'trend') renderTrend();
   }
@@ -482,6 +487,7 @@ function renderTrend(){
     return `<div class="bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-100 flex justify-between items-center"><span class="text-xs font-bold text-slate-500">${r.date}</span><span class="flex items-center gap-2.5"><span class="text-[11px] text-slate-400">🔥 ${r.kcal||Math.round(r.steps*0.04)} kcal</span><b class="text-sm font-black">${r.steps.toLocaleString()} 步</b>${badge}</span></div>`;
   }).join(''):'';
 }
+window.renderTrend = renderTrend;
 
 // ---------- 3D ----------
 const mount=$('mount');
@@ -613,6 +619,9 @@ cv.addEventListener('pointerup',()=>{drag=false;if(!moved&&!S.anim&&!S.walk){S.a
 
 resize();drawScreen();build();refresh();
 new ResizeObserver(resize).observe(mount);
+} catch (error) {
+  console.error("Initialization Error:", error);
+}
 </script>
 <script>
 /* ===== 雲端儲存 (Firebase Firestore REST) ===== */
@@ -622,6 +631,22 @@ let U=null,lastSnap='',busy=false;
 const docUrl=id=>`https://firestore.googleapis.com/v1/projects/${CLOUD.projectId}/databases/(default)/documents/profiles/${id}?key=${CLOUD.apiKey}`;
 const cmsg=t=>{$('cMsg').textContent=t};
 async function sha(p){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('3dhealth:'+p));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
+window.cloudLogin = async function(){
+  const ph=$('phone').value.replace(/\D/g,'');
+  if(!cloudOn()){cmsg('雲端功能尚未啟用');return}
+  if(!$('agree').checked){cmsg('請先勾選同意資料使用說明');return}
+  if(!/^09\d{8}$/.test(ph)){cmsg('請輸入 09 開頭共 10 碼的手機號碼');return}
+  cmsg('載入中…');
+  try{const id=await sha(ph),mask=ph.slice(0,4)+'***'+ph.slice(-3);await pull(id,mask);
+    try{localStorage.setItem('hcloud',JSON.stringify({id,mask}))}catch(e){}}
+  catch(e){U=null;cmsg('⚠️ 連線失敗：'+((e&&e.message)||'未知錯誤'))}
+  renderCloud()}
+window.cloudOut = function(){U=null;try{localStorage.removeItem('hcloud')}catch(e){}cmsg('已登出');renderCloud()}
+window.cloudDel = async function(){
+  if(!U||!confirm('確定永久刪除雲端上的你的資料嗎？此動作無法復原。'))return;
+  try{const r=await fetch(docUrl(U.id),{method:'DELETE'});if(!r.ok)throw 0;cloudOut();cmsg('✅ 雲端資料已刪除')}
+  catch(e){cmsg('⚠️ 刪除失敗，請稍後再試')}}
+
 function snap(){return JSON.stringify({h:S.h,w:S.w,age:S.age,c:S.c,wa:S.wa,hi:S.hi,g:S.g,shape:S.shape,shapeMode:S.shapeMode,act:S.act,diet:S.diet,color:S.color,rec:S.rec,stepRec:S.stepRec})}
 function applyData(d){
   ['h','w','age','c','wa','hi'].forEach(k=>{const v=+d[k];S[k]=isFinite(v)&&v>0&&v<1000?v:0});
@@ -633,7 +658,7 @@ function applyData(d){
   if(COLORS.includes(d.color))S.color=d.color;
   S.rec=(Array.isArray(d.rec)?d.rec:[]).slice(-200).filter(r=>r&&isFinite(+r.weight)).map(r=>({id:+r.id||Date.now(),time:String(r.time||'').replace(/[^0-9:]/g,'').slice(0,8),weight:+r.weight,bmi:+r.bmi||0}));
   const cloudSteps=(Array.isArray(d.stepRec)?d.stepRec:[]).slice(-30).filter(r=>r&&r.key&&isFinite(+r.steps)).map(r=>({key:String(r.key).slice(0,10),date:String(r.date||'').slice(0,5),steps:+r.steps||0,kcal:+r.kcal||Math.round((+r.steps||0)*0.04)}));
-  // 合併本機與雲端的每日步數（同一天取較大值，確保重啟或離線紀錄不遺失）
+  
   const stepMap = new Map();
   [...S.stepRec, ...cloudSteps].forEach(r => {
     const prev = stepMap.get(r.key);
@@ -641,7 +666,6 @@ function applyData(d){
   });
   S.stepRec = Array.from(stepMap.values()).sort((a,b)=>a.key.localeCompare(b.key)).slice(-30);
 
-  // 如果雲端有今日已累積的步數且大於本機，自動延續該步數作為基準
   const { key: curKey } = todayKeys();
   const todayCloudRec = S.stepRec.find(r => r.key === curKey);
   if (todayCloudRec && todayCloudRec.steps > STEP_STATE.todayTotal) {
@@ -654,8 +678,8 @@ function applyData(d){
 
   document.querySelectorAll('[data-k]').forEach(el=>{const v=S[el.dataset.k];el.value=el.type==='range'?(v||el.dataset.d):(v||'')});
   $('gender').value=S.g;$('act').value=String(S.act);
-  paintPal();paintShapes();refresh();save();
-  if(S.tab==='trend')renderTrend();if(S.tab==='plan')renderPlan()}
+  paintPal();paintShapes();if(window.refresh)refresh();save();
+  if(S.tab==='trend' && window.renderTrend)renderTrend();if(S.tab==='plan' && window.renderPlan)renderPlan()}
 function renderCloud(){
   $('cloudIn').classList.toggle('hidden',!!U);$('cloudOn').classList.toggle('hidden',!U);
   if(U)$('cMask').textContent=U.mask;
@@ -672,55 +696,45 @@ async function pull(id,mask,isNew){
   if(!r.ok)throw 0;
   const j=await r.json(),d=JSON.parse(j.fields.data.stringValue);
   U={id,mask};applyData(d);lastSnap=snap();cmsg('✅ 已載入你的資料')}
-async function cloudLogin(){
-  const ph=$('phone').value.replace(/\D/g,'');
-  if(!cloudOn()){cmsg('雲端功能尚未啟用');return}
-  if(!$('agree').checked){cmsg('請先勾選同意資料使用說明');return}
-  if(!/^09\d{8}$/.test(ph)){cmsg('請輸入 09 開頭共 10 碼的手機號碼');return}
-  cmsg('載入中…');
-  try{const id=await sha(ph),mask=ph.slice(0,4)+'***'+ph.slice(-3);await pull(id,mask);
-    try{localStorage.setItem('hcloud',JSON.stringify({id,mask}))}catch(e){}}
-  catch(e){U=null;cmsg('⚠️ 連線失敗：'+((e&&e.message)||'未知錯誤'))}
-  renderCloud()}
-function cloudOut(){U=null;try{localStorage.removeItem('hcloud')}catch(e){}cmsg('已登出');renderCloud()}
-async function cloudDel(){
-  if(!U||!confirm('確定永久刪除雲端上的你的資料嗎？此動作無法復原。'))return;
-  try{const r=await fetch(docUrl(U.id),{method:'DELETE'});if(!r.ok)throw 0;cloudOut();cmsg('✅ 雲端資料已刪除')}
-  catch(e){cmsg('⚠️ 刪除失敗，請稍後再試')}}
 setInterval(()=>{if(U&&!busy){const s=snap();if(s!==lastSnap){lastSnap=s;push()}}},2500);
 (async()=>{try{const s=JSON.parse(localStorage.getItem('hcloud')||'null');if(s&&s.id&&cloudOn()){$('agree').checked=true;cmsg('載入中…');await pull(s.id,String(s.mask||''))}}catch(e){U=null;cmsg('⚠️ 連線失敗')}renderCloud()})();
 </script>
 <script>
 /* ===== 穿戴裝置 (活動分頁) ===== */
-let ACT=null,demo=false,ACT_ERR='';
+window.ACT=null; window.demo=false; window.ACT_ERR='';
 const actUrl=id=>`https://firestore.googleapis.com/v1/projects/${CLOUD.projectId}/databases/(default)/documents/activity/${id.slice(0,16)}?key=${CLOUD.apiKey}`;
-function drawAct(){
-  checkMidnightRollover();
+window.drawAct = function(){
+  if(window.checkMidnightRollover) checkMidnightRollover();
   const a=ACT||{},n=v=>(v!=null&&isFinite(+v)&&+v>0)?+v:null;
   const st0=n(a.steps)||0,ts=n(a.ts),fl=n(a.fall);
   const stale=!demo&&!!ts&&new Date(ts*1000).toDateString()!==new Date().toDateString();
   const st=stale?0:(st0 || (!demo ? STEP_STATE.todayTotal : 0));
   const pct=Math.min(100,Math.round(st/8000*100));
-  $('aSteps').textContent=st.toLocaleString();$('aBar').style.width=pct+'%';
-  $('aPct').textContent='目標 8,000 步 · 已達成 '+pct+'%';$('aKcal').textContent=Math.round(st*0.04);
-
+  const elSteps = document.getElementById('aSteps'); if(elSteps) elSteps.textContent=st.toLocaleString();
+  const elBar = document.getElementById('aBar'); if(elBar) elBar.style.width=pct+'%';
+  const elPct = document.getElementById('aPct'); if(elPct) elPct.textContent='目標 8,000 步 · 已達成 '+pct+'%';
+  const elKcal = document.getElementById('aKcal'); if(elKcal) elKcal.textContent=Math.round(st*0.04);
+  
   let sub='尚未收到裝置資料';
   if(ACT_ERR)sub='⚠️ '+ACT_ERR;
-  else if(bleConnected){
+  else if(window.bleConnected){
     const m=ts?Math.max(0,Math.round((Date.now()/1000-ts)/60)):0;
     sub=(U&&cloudOn())?(m<1?'藍牙已連線 · 延續今日步數並每 5 秒同步':'藍牙已連線 · '+m+' 分鐘前同步'):'藍牙已連線 · 重啟自動延續今日步數';
   }
   else if(ts){const m=Math.max(0,Math.round((Date.now()/1000-ts)/60));sub=m<1?'剛剛同步':m<60?m+' 分鐘前同步':new Date(ts*1000).toLocaleString()+' 同步'}
-  if(!ACT_ERR&&!bleConnected&&ACT&&!ts)sub='已收到裝置資料';$('actSub').textContent=sub;
+  if(!ACT_ERR&&!window.bleConnected&&ACT&&!ts)sub='已收到裝置資料';
+  const elActSub = document.getElementById('actSub'); if(elActSub) elActSub.textContent=sub;
   const wifiOn=!ACT_ERR&&!!ts&&(Date.now()/1000-ts)<150;
   const wifiOff=!wifiOn&&((!!ts&&!ACT_ERR)||(ACT_ERR.indexOf('雲端還沒有')===0));
-  const wEl=$('wifiOk');
-  if(wifiOn){wEl.className='bg-emerald-50 p-3 rounded-2xl flex items-center gap-2 text-xs font-bold text-emerald-700';wEl.textContent='📶 WiFi 已連線';wEl.style.display='flex'}
-  else if(wifiOff){wEl.className='bg-red-50 p-3 rounded-2xl flex items-center gap-2 text-xs font-bold text-red-600';wEl.textContent='📵 WiFi 已斷線';wEl.style.display='flex'}
-  else wEl.style.display='none';
-  $('aDemo').textContent=demo?'改看真實資料':'看模擬資料'}
-async function fetchAct(){
-  checkMidnightRollover();
+  const wEl=document.getElementById('wifiOk');
+  if(wEl){
+    if(wifiOn){wEl.className='bg-emerald-50 p-3 rounded-2xl flex items-center gap-2 text-xs font-bold text-emerald-700';wEl.textContent='📶 WiFi 已連線';wEl.style.display='flex'}
+    else if(wifiOff){wEl.className='bg-red-50 p-3 rounded-2xl flex items-center gap-2 text-xs font-bold text-red-600';wEl.textContent='📵 WiFi 已斷線';wEl.style.display='flex'}
+    else wEl.style.display='none';
+  }
+  const elDemo = document.getElementById('aDemo'); if(elDemo) elDemo.textContent=demo?'改看真實資料':'看模擬資料'}
+window.fetchAct = async function(){
+  if(window.checkMidnightRollover) checkMidnightRollover();
   if(demo)return;
   if(!U){ACT_ERR='請先在「資料」分頁登入雲端';drawAct();return}
   if(!cloudOn())return;
@@ -745,14 +759,13 @@ async function fetchAct(){
     else ACT_ERR='讀取失敗 HTTP '+r.status+(r.status===403?'（Firestore 規則未開放 activity 集合）':'');
   }catch(e){ACT_ERR='網路錯誤，無法連到雲端'}
   drawAct()}
-function renderAct(){if(!demo)fetchAct();drawAct()}
-function demoAct(){
+window.renderAct = function(){if(!demo)fetchAct();drawAct()}
+window.demoAct = function(){
   if(demo){demo=false;ACT=null;renderAct();return}
   demo=true;
   ACT={steps:5000+Math.round(Math.random()*3000),fall:0,ts:0};drawAct()}
 setInterval(()=>{if(S.tab==='act'&&!demo)fetchAct()},5000);
 
-// 初始化顯示本機已延續的今日步數
 if (STEP_STATE.todayTotal > 0) {
   ACT = { steps: STEP_STATE.todayTotal, fall: 0, ts: Math.floor(Date.now() / 1000) };
   drawAct();
@@ -761,15 +774,14 @@ if (STEP_STATE.todayTotal > 0) {
 /* ===== 藍牙 (Web Bluetooth API) 整合與每 5 秒自動上傳 ===== */
 const serviceUuid = "19b10000-e8f2-537e-4f6c-d104768a1214";
 const stepCharUuid = "19b10001-e8f2-537e-4f6c-d104768a1214";
-let bleDevice;
-let walkTimer = null;
-let bleConnected = false;
-let stepDirty = false;
-let stepUploadBusy = false;
+window.bleDevice = null;
+window.walkTimer = null;
+window.bleConnected = false;
+window.stepDirty = false;
+window.stepUploadBusy = false;
 
-// ===== Web Audio API 警報音效 =====
 let audioCtx = null;
-function initAudio() {
+window.initAudio = function() {
   if (!audioCtx) {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   }
@@ -779,8 +791,8 @@ function playBeep(startTime) {
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
   osc.type = 'square';
-  osc.frequency.setValueAtTime(880, startTime); // 880Hz 音高
-  gain.gain.setValueAtTime(0.5, startTime); // 音量
+  osc.frequency.setValueAtTime(880, startTime); 
+  gain.gain.setValueAtTime(0.5, startTime); 
   gain.gain.exponentialRampToValueAtTime(0.01, startTime + 0.1);
   osc.connect(gain);
   gain.connect(audioCtx.destination);
@@ -796,29 +808,31 @@ function playFallAlarm() {
   playBeep(now + 0.6);
 }
 
-function triggerFallAlert() {
-  $('fallAlert').classList.remove('hidden');
-  playFallAlarm(); // 觸發手機端 3 聲逼逼聲
+window.triggerFallAlert = function() {
+  const el = document.getElementById('fallAlert');
+  if(el) el.classList.remove('hidden');
+  playFallAlarm(); 
   ACT = ACT || { steps: 0, fall: 0, ts: 0 };
   ACT.fall = (ACT.fall || 0) + 1;
   ACT.ts = Math.floor(Date.now() / 1000);
-  stepDirty = true;
+  window.stepDirty = true;
   drawAct();
 }
 
-function dismissFallAlert() {
-  $('fallAlert').classList.add('hidden');
+window.dismissFallAlert = function() {
+  const el = document.getElementById('fallAlert');
+  if(el) el.classList.add('hidden');
 }
 
 async function uploadStepsEvery5Sec() {
-  checkMidnightRollover();
-  if (!bleConnected || !stepDirty || stepUploadBusy || !ACT) return;
-  stepUploadBusy = true;
-  stepDirty = false;
+  if(window.checkMidnightRollover) checkMidnightRollover();
+  if (!window.bleConnected || !window.stepDirty || window.stepUploadBusy || !ACT) return;
+  window.stepUploadBusy = true;
+  window.stepDirty = false;
   try {
     const nowTs = Math.floor(Date.now() / 1000);
     ACT.ts = nowTs;
-    syncDailyStep(ACT.steps, false);
+    if(window.syncDailyStep) syncDailyStep(ACT.steps, false);
     if (U && cloudOn()) {
       await fetch(actUrl(U.id), {
         method: 'PATCH',
@@ -838,56 +852,58 @@ async function uploadStepsEvery5Sec() {
     }
     drawAct();
   } catch (e) {
-    stepDirty = true;
+    window.stepDirty = true;
   }
-  stepUploadBusy = false;
+  window.stepUploadBusy = false;
 }
 
-// 每 5 秒上傳一次步數
 setInterval(uploadStepsEvery5Sec, 5000);
 
-document.getElementById('ble-connect-btn').addEventListener('click', async () => {
-  initAudio(); // 確保 AudioContext 被使用者點擊解鎖
-  if (!navigator.bluetooth) {
-    toast('⚠️ iPhone 請改用 Bluefy 瀏覽器開啟網頁！');
-    return;
-  }
-  const btn = document.getElementById('ble-connect-btn');
-  try {
-    btn.innerText = '搜尋中...';
-    bleDevice = await navigator.bluetooth.requestDevice({
-      acceptAllDevices: true,
-      optionalServices: [serviceUuid]
-    });
+const btnConnect = document.getElementById('ble-connect-btn');
+if(btnConnect) {
+  btnConnect.addEventListener('click', async () => {
+    initAudio(); 
+    if (!navigator.bluetooth) {
+      if(window.toast) toast('⚠️ iPhone 請改用 Bluefy 瀏覽器開啟網頁！');
+      return;
+    }
+    const btn = document.getElementById('ble-connect-btn');
+    try {
+      btn.innerText = '搜尋中...';
+      window.bleDevice = await navigator.bluetooth.requestDevice({
+        acceptAllDevices: true,
+        optionalServices: [serviceUuid]
+      });
 
-    btn.innerText = '連線中...';
-    const server = await bleDevice.gatt.connect();
-    const service = await server.getPrimaryService(serviceUuid);
-    const stepCharacteristic = await service.getCharacteristic(stepCharUuid);
+      btn.innerText = '連線中...';
+      const server = await window.bleDevice.gatt.connect();
+      const service = await server.getPrimaryService(serviceUuid);
+      const stepCharacteristic = await service.getCharacteristic(stepCharUuid);
 
-    await stepCharacteristic.startNotifications();
-    stepCharacteristic.addEventListener('characteristicvaluechanged', handleStepUpdate);
-    
-    bleConnected = true;
-    demo = false;
+      await stepCharacteristic.startNotifications();
+      stepCharacteristic.addEventListener('characteristicvaluechanged', handleStepUpdate);
+      
+      window.bleConnected = true;
+      demo = false;
 
-    bleDevice.addEventListener('gattserverdisconnected', () => {
-       bleConnected = false;
-       btn.innerText = '+ 連接藍牙';
-       btn.className = 'bg-indigo-600 text-white text-xs font-bold px-3 py-2 rounded-xl active:scale-95';
-       toast('🔴 裝置已斷線（今日步數已保留）');
-    });
+      window.bleDevice.addEventListener('gattserverdisconnected', () => {
+         window.bleConnected = false;
+         btn.innerText = '+ 連接藍牙';
+         btn.className = 'bg-indigo-600 text-white text-xs font-bold px-3 py-2 rounded-xl active:scale-95';
+         if(window.toast) toast('🔴 裝置已斷線（今日步數已保留）');
+      });
 
-    btn.innerText = '🟢 已連線';
-    btn.className = 'bg-emerald-500 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-sm';
-    toast('藍牙連接成功！（延續今日步數，每 5 秒同步）');
-    
-  } catch (error) {
-    console.error('藍牙連接失敗:', error);
-    btn.innerText = '+ 連接藍牙';
-    toast('失敗原因：' + (error.message || '已取消'));
-  }
-});
+      btn.innerText = '🟢 已連線';
+      btn.className = 'bg-emerald-500 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-sm';
+      if(window.toast) toast('藍牙連接成功！（延續今日步數，每 5 秒同步）');
+      
+    } catch (error) {
+      console.error('藍牙連接失敗:', error);
+      btn.innerText = '+ 連接藍牙';
+      if(window.toast) toast('失敗原因：' + (error.message || '已取消'));
+    }
+  });
+}
 
 function handleStepUpdate(event) {
   const value = event.target.value;
@@ -895,44 +911,42 @@ function handleStepUpdate(event) {
   const rawString = decoder.decode(value).trim();
   
   if (rawString === "FALL") {
-    triggerFallAlert();
+    if(window.triggerFallAlert) triggerFallAlert();
     return;
   }
 
   const rawStepCount = parseInt(rawString, 10);
   if (isNaN(rawStepCount)) return;
   
-  // 1. 經過重啟偵測與跨日結算後，計算今日真實累積總步數
-  const totalTodaySteps = processHardwareSteps(rawStepCount);
+  const totalTodaySteps = window.processHardwareSteps ? processHardwareSteps(rawStepCount) : rawStepCount;
   
   ACT = ACT || { steps: 0, fall: 0, ts: 0 };
   if (ACT.steps !== totalTodaySteps) {
     ACT.steps = totalTodaySteps;
-    stepDirty = true;
-    syncDailyStep(totalTodaySteps, false);
+    window.stepDirty = true;
+    if(window.syncDailyStep) syncDailyStep(totalTodaySteps, false);
   }
   
   drawAct();
   
-  // 2. 觸發 3D 公仔「持續原地走路」動畫
   if (!S.walk) {
     S.walk = true;
-    build();
+    if(typeof build === 'function') build();
   }
   
-  if (walkTimer) {
-      clearTimeout(walkTimer);
+  if (window.walkTimer) {
+      clearTimeout(window.walkTimer);
   }
   
-  walkTimer = setTimeout(() => { 
+  window.walkTimer = setTimeout(() => { 
       S.walk = false; 
-      build(); 
+      if(typeof build === 'function') build(); 
   }, 5500);
 }
 
 const originalFetchAct = fetchAct;
-fetchAct = async function() {
-    if(bleConnected) return;
+window.fetchAct = async function() {
+    if(window.bleConnected) return;
     return originalFetchAct();
 };
 </script>
