@@ -185,16 +185,15 @@ const DIET=[
 '早餐：饅頭夾蛋＋無糖豆漿\n午餐：自助餐：瘦肉片炒青椒、燙青菜、蒸南瓜、白飯\n晚餐：絲瓜蛤蜊湯、炒高麗菜、豆干',
 '早餐：地瓜＋水煮蛋＋無糖豆漿\n午餐：自助餐：蒸魚、炒木耳、燙青菜、白飯\n晚餐：雞肉絲湯麵(少油)、燙青菜、滷蛋'];
 
-// ---- 更換菜色：把原本 7 天拆成早/午/晚菜色池，再加幾道新菜，用種子洗牌 ----
 const DP=[[],[],[]];
 DIET.forEach(f=>f.split('\n').forEach((l,i)=>DP[i].push(l)));
 DP[0].push('早餐：燕麥片＋無糖豆漿＋香蕉','早餐：全麥饅頭＋水煮蛋＋無糖豆漿','早餐：無糖優格＋水果＋堅果');
 DP[1].push('午餐：自助餐：滷雞胸肉、燙青菜、炒豆芽、糙米飯','午餐：自助餐：蒸魚、燙地瓜葉、炒時蔬、白飯','午餐：自助餐：瘦肉片炒青椒、炒木耳、燙青菜、糙米飯');
 DP[2].push('晚餐：蒜炒花椰菜、蒸蛋、板豆腐','晚餐：蔬菜豆腐湯、涼拌小黃瓜、水煮蛋','晚餐：絲瓜蛤蜊湯、燙青菜、滷豆腐');
-const wkId=()=>Math.floor((Math.floor(Date.now()/864e5)+3)/7); // 以週一為一週的開始
+const wkId=()=>Math.floor((Math.floor(Date.now()/864e5)+3)/7);
 let MS=null;
 try{const m=JSON.parse(localStorage.getItem('hmeal')||'null');if(m&&m.w===wkId()&&isFinite(m.s))MS=m.s}catch(e){}
-const mealSeed=()=>MS!==null?MS:wkId()*7919+13; // 沒按過按鈕：每週自動換一組
+const mealSeed=()=>MS!==null?MS:wkId()*7919+13;
 function rnd(seed){let s=(seed>>>0)%2147483647||1;return()=>(s=s*16807%2147483647)/2147483647}
 function weekDiet(){
   const sd=mealSeed();
@@ -220,12 +219,10 @@ try{const sr=JSON.parse(localStorage.getItem('hsteprec')||'[]');if(Array.isArray
 function save(){try{localStorage.setItem('hrec',JSON.stringify(S.rec));localStorage.setItem('hsteprec',JSON.stringify(S.stepRec))}catch(e){}}
 function toast(t){const e=$('toast');e.textContent=t;e.classList.remove('hidden');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.add('hidden'),2500)}
 
-// ---------- UI 組裝 ----------
 $('pal').innerHTML=COLORS.map(c=>`<button data-c="${c}" class="w-6 h-6 rounded-full border-2 border-transparent" style="background:${c}"></button>`).join('');
 $('pal').onclick=e=>{const c=e.target.dataset.c;if(c){S.color=c;paintPal();build()}};
 function paintPal(){document.querySelectorAll('#pal button').forEach(b=>{b.style.borderColor=b.dataset.c===S.color?'#1e293b':'transparent';b.style.transform=b.dataset.c===S.color?'scale(1.1)':''})}
 paintPal();
-void [['c','胸圍',88,60,130],['wa','腰圍',70,50,120],['hi','臀圍',92,65,135]].map(([k,l,d,mn,mx])=>`<div class="bg-white p-2.5 rounded-xl border border-slate-200"><label class="text-[11px] font-bold text-slate-400 block">${l}</label><input data-k="${k}" data-d="${d}" type="number" placeholder="${d}" class="w-full bg-transparent text-lg font-black mb-1"><input data-k="${k}" data-d="${d}" type="range" min="${mn}" max="${mx}" class="w-full accent-indigo-600"></div>`).join('');
 $('shapes').innerHTML=SHAPES.map(s=>`<button data-s="${s[0]}" class="p-4 rounded-2xl text-left transition-all"><div class="font-bold mb-1">${s[1]}</div><div class="text-xs">${s[2]}</div></button>`).join('');
 $('shapes').onclick=e=>{const b=e.target.closest('button');if(b&&S.shapeMode==='manual'){S.shape=b.dataset.s;paintShapes();build()}};
 function paintShapes(){const auto=S.shapeMode==='auto';
@@ -246,7 +243,6 @@ function setTab(t){S.tab=t;document.querySelectorAll('.tab').forEach(e=>e.classL
   if(t==='trend')renderTrend();if(t==='act')renderAct()}
 setTab('data');
 
-// ---------- 輸入處理 ----------
 document.querySelectorAll('[data-k]').forEach(el=>el.addEventListener('input',()=>{
   S[el.dataset.k]=parseFloat(el.value)||0;
   document.querySelectorAll(`[data-k="${el.dataset.k}"]`).forEach(o=>{if(o!==el)o.value=o.type==='range'?(S[el.dataset.k]||o.dataset.d):el.value});
@@ -480,7 +476,6 @@ function build(){
   };
   const nbb=nb;$('bubble').textContent=nbb>=24?'太胖了...跳不動🥵':'太瘦了...沒力氣🤕';$('bubble').classList.toggle('hidden',!bad)}
 
-// 旋轉與點擊 (只在畫布上判定)
 let rotY=0,drag=false,moved=false,lx=0;
 const cv=ren.domElement;
 cv.addEventListener('pointerdown',e=>{drag=true;moved=false;lx=e.clientX;cv.setPointerCapture(e.pointerId)});
@@ -634,10 +629,13 @@ async function uploadStepsEvery5Sec() {
   stepUploadBusy = false;
 }
 
-// 每 5 秒上傳一次步數
 setInterval(uploadStepsEvery5Sec, 5000);
 
 document.getElementById('ble-connect-btn').addEventListener('click', async () => {
+  if (!navigator.bluetooth) {
+    toast('⚠️ iPhone 請改用 Bluefy 瀏覽器開啟網頁！');
+    return;
+  }
   const btn = document.getElementById('ble-connect-btn');
   try {
     btn.innerText = '搜尋中...';
@@ -671,7 +669,7 @@ document.getElementById('ble-connect-btn').addEventListener('click', async () =>
   } catch (error) {
     console.error('藍牙連接失敗:', error);
     btn.innerText = '+ 連接藍牙';
-    toast('連接失敗或被取消');
+    toast('失敗原因：' + (error.message || '已取消'));
   }
 });
 
@@ -680,7 +678,6 @@ function handleStepUpdate(event) {
   const decoder = new TextDecoder('utf-8');
   const stepCount = parseInt(decoder.decode(value), 10);
   
-  // 1. 即時更新畫面步數並標記待上傳 (每 5 秒統一上傳一次)
   ACT = ACT || { steps: 0, fall: 0, ts: 0 };
   if (ACT.steps !== stepCount) {
     ACT.steps = stepCount;
@@ -689,9 +686,10 @@ function handleStepUpdate(event) {
   
   drawAct();
   
-  // 2. 觸發 3D 公仔「原地走路」動畫
-  S.walk = true;
-  build();
+  if (!S.walk) {
+    S.walk = true;
+    build();
+  }
   
   if (walkTimer) {
       clearTimeout(walkTimer);
@@ -700,7 +698,7 @@ function handleStepUpdate(event) {
   walkTimer = setTimeout(() => { 
       S.walk = false; 
       build(); 
-  }, 1500);
+  }, 5500);
 }
 
 const originalFetchAct = fetchAct;
