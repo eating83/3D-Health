@@ -155,7 +155,7 @@ input[type=number],select{outline:none}
         <!-- 每日步數趨勢 -->
         <div class="border-t border-slate-100 pt-5 space-y-3">
           <div class="flex items-center justify-between">
-            <div><h2 class="text-base font-black">👟 每日步數趨勢</h2><p class="text-xs text-slate-400">連接藍牙自動同步每日步數</p></div>
+            <div><h2 class="text-base font-black">👟 每日步數趨勢</h2><p class="text-xs text-slate-400">連接藍牙每 5 秒自動同步每日步數</p></div>
             <div class="flex gap-2">
               <button onclick="S.stepRec=[];save();renderTrend()" class="p-2 text-slate-500 bg-slate-100 rounded-xl text-xs font-bold">清空</button>
               <button onclick="recordTodaySteps()" class="bg-orange-500 active:scale-95 text-white text-xs font-bold px-3 py-2 rounded-xl">＋ 記錄步數</button>
@@ -563,8 +563,12 @@ function drawAct(){
   let sub='尚未收到裝置資料';
   
   if(ACT_ERR)sub='⚠️ '+ACT_ERR;
+  else if(bleConnected){
+    const m=ts?Math.max(0,Math.round((Date.now()/1000-ts)/60)):0;
+    sub=(U&&cloudOn())?(m<1?'藍牙已連線 · 每 5 秒自動上傳雲端':'藍牙已連線 · '+m+' 分鐘前同步'):'藍牙已連線（登入雲端可每 5 秒上傳）';
+  }
   else if(ts){const m=Math.max(0,Math.round((Date.now()/1000-ts)/60));sub=m<1?'剛剛同步':m<60?m+' 分鐘前同步':new Date(ts*1000).toLocaleString()+' 同步'}
-  if(!ACT_ERR&&ACT&&!ts)sub='已收到裝置資料';$('actSub').textContent=sub;
+  if(!ACT_ERR&&!bleConnected&&ACT&&!ts)sub='已收到裝置資料';$('actSub').textContent=sub;
   const wifiOn=!ACT_ERR&&!!ts&&(Date.now()/1000-ts)<150;
   const wifiOff=!wifiOn&&((!!ts&&!ACT_ERR)||(ACT_ERR.indexOf('雲端還沒有')===0));
   const wEl=$('wifiOk');
@@ -587,14 +591,51 @@ function demoAct(){
   if(demo){demo=false;ACT=null;renderAct();return}
   demo=true;
   ACT={steps:5000+Math.round(Math.random()*3000),fall:0,ts:0};drawAct()}
-setInterval(()=>{if(S.tab==='act'&&!demo)fetchAct()},15000);
+setInterval(()=>{if(S.tab==='act'&&!demo)fetchAct()},5000);
 
-/* ===== 藍牙 (Web Bluetooth API) 整合 ===== */
+/* ===== 藍牙 (Web Bluetooth API) 整合與每 5 秒自動上傳 ===== */
 const serviceUuid = "19b10000-e8f2-537e-4f6c-d104768a1214";
 const stepCharUuid = "19b10001-e8f2-537e-4f6c-d104768a1214";
 let bleDevice;
 let walkTimer = null;
 let bleConnected = false;
+let stepDirty = false;
+let stepUploadBusy = false;
+
+async function uploadStepsEvery5Sec() {
+  if (!bleConnected || !stepDirty || stepUploadBusy || !ACT) return;
+  stepUploadBusy = true;
+  stepDirty = false;
+  try {
+    const nowTs = Math.floor(Date.now() / 1000);
+    ACT.ts = nowTs;
+    syncDailyStep(ACT.steps, false);
+    if (U && cloudOn()) {
+      await fetch(actUrl(U.id), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fields: {
+            data: {
+              stringValue: JSON.stringify({
+                steps: ACT.steps,
+                fall: 0,
+                ts: nowTs
+              })
+            }
+          }
+        })
+      });
+    }
+    drawAct();
+  } catch (e) {
+    stepDirty = true;
+  }
+  stepUploadBusy = false;
+}
+
+// 每 5 秒上傳一次步數
+setInterval(uploadStepsEvery5Sec, 5000);
 
 document.getElementById('ble-connect-btn').addEventListener('click', async () => {
   const btn = document.getElementById('ble-connect-btn');
@@ -625,7 +666,7 @@ document.getElementById('ble-connect-btn').addEventListener('click', async () =>
 
     btn.innerText = '🟢 已連線';
     btn.className = 'bg-emerald-500 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-sm';
-    toast('藍牙連接成功！');
+    toast('藍牙連接成功！（每 5 秒自動上傳）');
     
   } catch (error) {
     console.error('藍牙連接失敗:', error);
@@ -639,13 +680,14 @@ function handleStepUpdate(event) {
   const decoder = new TextDecoder('utf-8');
   const stepCount = parseInt(decoder.decode(value), 10);
   
-  // 1. 更新頁面狀態與每日步數趨勢
+  // 1. 即時更新畫面步數並標記待上傳 (每 5 秒統一上傳一次)
   ACT = ACT || { steps: 0, fall: 0, ts: 0 };
-  ACT.steps = stepCount;
-  ACT.ts = Math.floor(Date.now() / 1000);
+  if (ACT.steps !== stepCount) {
+    ACT.steps = stepCount;
+    stepDirty = true;
+  }
   
   drawAct();
-  syncDailyStep(stepCount, false);
   
   // 2. 觸發 3D 公仔「原地走路」動畫
   S.walk = true;
