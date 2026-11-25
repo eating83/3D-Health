@@ -133,7 +133,7 @@ input[type=number],select{outline:none}
             <button id="aDemo" onclick="demoAct()" class="bg-slate-100 text-slate-600 text-xs font-bold px-2.5 py-2 rounded-xl">看模擬資料</button>
           </div>
         </div>
-        <div id="wifiOk" style="display:none" class="bg-emerald-50 p-3 rounded-2xl items-center gap-2 text-xs font-bold text-emerald-700">📶 WiFi 已連線</div>
+        <div id="wifiOk" style="display:none" class="bg-emerald-50 p-3 rounded-2xl items-center gap-2 text-xs font-bold text-emerald-700">🔵 藍牙已連接</div>
         <div class="bg-gradient-to-br from-indigo-600 to-purple-600 text-white p-4 rounded-2xl"><div class="text-xs font-bold text-indigo-100">今日步數</div><div class="flex items-end gap-2"><span id="aSteps" class="text-4xl font-black">0</span><span class="text-sm mb-1 text-indigo-100">步</span></div><div class="h-2 bg-white/25 rounded-full mt-2 overflow-hidden"><div id="aBar" class="h-full bg-orange-400 rounded-full" style="width:0%"></div></div><div class="flex justify-between text-[11px] mt-1.5 text-indigo-100"><span id="aPct"></span><span>🔥 約 <b id="aKcal">0</b> kcal</span></div></div>
       </div>
 
@@ -685,11 +685,11 @@ function drawAct(){
   }
   else if(ts){const m=Math.max(0,Math.round((Date.now()/1000-ts)/60));sub=m<1?'剛剛同步':m<60?m+' 分鐘前同步':new Date(ts*1000).toLocaleString()+' 同步'}
   if(!ACT_ERR&&!bleConnected&&ACT&&!ts)sub='已收到裝置資料';$('actSub').textContent=sub;
-  const wifiOn=!ACT_ERR&&!!ts&&(Date.now()/1000-ts)<150;
-  const wifiOff=!wifiOn&&((!!ts&&!ACT_ERR)||(ACT_ERR.indexOf('雲端還沒有')===0));
+  const wifiOn=bleConnected;
+  const wifiOff=!wifiOn&&(!!bleDevice||(!!ts&&!ACT_ERR));
   const wEl=$('wifiOk');
-  if(wifiOn){wEl.className='bg-emerald-50 p-3 rounded-2xl flex items-center gap-2 text-xs font-bold text-emerald-700';wEl.textContent='📶 WiFi 已連線';wEl.style.display='flex'}
-  else if(wifiOff){wEl.className='bg-red-50 p-3 rounded-2xl flex items-center gap-2 text-xs font-bold text-red-600';wEl.textContent='📵 WiFi 已斷線';wEl.style.display='flex'}
+  if(wifiOn){wEl.className='bg-emerald-50 p-3 rounded-2xl flex items-center gap-2 text-xs font-bold text-emerald-700';wEl.textContent='🔵 藍牙已連接';wEl.style.display='flex'}
+  else if(wifiOff){wEl.className='bg-red-50 p-3 rounded-2xl flex items-center gap-2 text-xs font-bold text-red-600';wEl.textContent='🔴 藍牙已斷線';wEl.style.display='flex'}
   else wEl.style.display='none';
   $('aDemo').textContent=demo?'改看真實資料':'看模擬資料'}
 async function fetchAct(){
@@ -807,11 +807,13 @@ document.getElementById('ble-connect-btn').addEventListener('click', async () =>
        btn.innerText = '+ 連接藍牙';
        btn.className = 'bg-indigo-600 text-white text-xs font-bold px-3 py-2 rounded-xl active:scale-95';
        toast('🔴 裝置已斷線（今日步數已保留）');
+       drawAct();
     });
 
     btn.innerText = '🟢 已連線';
     btn.className = 'bg-emerald-500 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-sm';
     toast('藍牙連接成功！（延續今日步數，每 5 秒同步）');
+    drawAct();
     
   } catch (error) {
     console.error('藍牙連接失敗:', error);
