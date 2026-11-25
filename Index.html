@@ -481,7 +481,67 @@ function demoAct(){
   demo=true;
   ACT={steps:5000+Math.round(Math.random()*3000),fall:0,ts:0};drawAct()}
 function copyCode(){if(U&&navigator.clipboard)navigator.clipboard.writeText(U.id.slice(0,16)).then(()=>toast('已複製裝置代碼')).catch(()=>{})}
-setInterval(()=>{if(S.tab==='act'&&!demo)fetchAct()},5000);
+setInterval(()=>{if(S.tab==='act'&&!demo)fetchAct()},15000);
+
+/* ===== 藍牙 (Web Bluetooth API) 整合 ===== */
+const serviceUuid = "19b10000-e8f2-537e-4f6c-d104768a1214";
+const stepCharUuid = "19b10001-e8f2-537e-4f6c-d104768a1214";
+let bleDevice;
+
+document.getElementById('ble-connect-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('ble-connect-btn');
+  try {
+    btn.innerText = '搜尋中...';
+    bleDevice = await navigator.bluetooth.requestDevice({
+      filters: [{ name: 'XIAO_Health' }],
+      optionalServices: [serviceUuid]
+    });
+
+    btn.innerText = '連線中...';
+    const server = await bleDevice.gatt.connect();
+    const service = await server.getPrimaryService(serviceUuid);
+    const stepCharacteristic = await service.getCharacteristic(stepCharUuid);
+
+    await stepCharacteristic.startNotifications();
+    stepCharacteristic.addEventListener('characteristicvaluechanged', handleStepUpdate);
+    
+    bleDevice.addEventListener('gattserverdisconnected', () => {
+       btn.innerText = '+ 連接藍牙';
+       btn.className = 'bg-indigo-600 text-white text-xs font-bold px-3 py-2 rounded-xl active:scale-95';
+       toast('🔴 裝置已斷線');
+    });
+
+    btn.innerText = '🟢 已連線';
+    btn.className = 'bg-emerald-500 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-sm';
+    toast('藍牙連接成功！');
+    
+  } catch (error) {
+    console.error('藍牙連接失敗:', error);
+    btn.innerText = '+ 連接藍牙';
+    toast('連接失敗或被取消');
+  }
+});
+
+function handleStepUpdate(event) {
+  const value = event.target.value;
+  const decoder = new TextDecoder('utf-8');
+  const stepCount = parseInt(decoder.decode(value), 10);
+  
+  // 1. 更新頁面狀態 (覆蓋目前的 ACT 資料並刷新 UI)
+  ACT = ACT || { steps: 0, fall: 0, ts: 0 };
+  ACT.steps = stepCount;
+  ACT.ts = Math.floor(Date.now() / 1000);
+  
+  demo = true; // 暫停自動抓雲端資料，以藍牙為主
+  drawAct();   // 呼叫你原本寫好的 UI 更新函式
+  
+  // 2. 觸發 3D 公仔動畫 (模擬走一步)
+  if(!S.anim) {
+    S.anim = true;
+    build();
+    setTimeout(() => { S.anim = false; build(); }, 1500);
+  }
+}
 </script>
 </body>
 </html>
