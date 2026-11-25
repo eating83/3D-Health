@@ -154,7 +154,6 @@ input[type=number],select{outline:none}
         <div class="bg-gradient-to-br from-indigo-600 to-purple-600 text-white p-4 rounded-2xl">
           <div class="flex justify-between items-start">
             <div class="text-xs font-bold text-indigo-100">今日步數</div>
-            <div id="fallBadge" class="hidden bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full animate-pulse shadow-md">曾偵測到跌倒</div>
           </div>
           <div class="flex items-end gap-2 mt-1">
             <span id="aSteps" class="text-4xl font-black">0</span>
@@ -238,7 +237,7 @@ const WORK={
 apple:['全身 HIIT 燃脂 (20分) + 核心捲腹 3組','快走或超慢跑 (45分) + 死蟲式','登山者式 4組 + 棒式 60秒','恢復：筋膜放鬆與瑜珈 (30分)','波比跳 (15分) + 俄羅斯轉體 4組','慢跑或游泳 (50分) + 側棒式','休息：飯後散步 30分'],
 pear:['徒手深蹲 4x15 + 分腿蹲 每側12','飛輪或快走 (40分) + 臀腿拉筋','相撲深蹲 4組 + 側臥抬腿 20下','恢復：下肢滾筒與瑜珈 (30分)','臀橋 4x20 + 階梯有氧 (30分)','後腳抬高蹲 3組 + 開合跳 (20分)','休息：泡腳與腿部按摩'],
 hourglass:['全身循環訓練 (30分) + 棒式 3組','慢跑或有氧舞蹈 (40分)','啞鈴深蹲推舉 4組 + 伏地挺身 3組','恢復：皮拉提斯 (30分)','HIIT (20分) + 臀橋 3組','游泳或騎車 (45分)','休息：全身伸展與深呼吸'],
-rectangle:['深蹲 + 彈力帶側走 4組','快走 (35分) + 側腹捲腹 4組','彈力帶划船 + 側平舉 4組','恢復：瑜珈體態雕塑 (30分)','保加利亞分腿蹲 3組 + 俄羅斯轉體 4組','全身燃脂操 (35分) + 平板支撐','休息：散步 30分與筋膜放鬆'],
+rectangle:['深蹲 + 彈力帶側走 4組','快走 (35分) + 側腹捲腹 4組','彈力帶划船 + 側平举 4組','恢復：瑜珈體態雕塑 (30分)','保加利亞分腿蹲 3組 + 俄羅斯轉體 4組','全身燃脂操 (35分) + 平板支撐','休息：散步 30分與筋膜放鬆'],
 maintain:['快走或慢跑 30分','核心喚醒：死蟲式+鳥狗式+棒式 (20分)','瑜珈或皮拉提斯 (40分)','恢復：散步 6000步 + 肩頸伸展','彈力帶或輕啞鈴全身 (30分)','騎單車、健行或游泳 (45分)','休息：全身滾筒按摩']};
 const SHAPES=[['apple','🍎 蘋果型','脂肪集中於腹部與上半身'],['pear','🍐 梨型','脂肪集中於臀部與大腿'],['hourglass','⏳ 沙漏型','胸臀豐滿、腰線明顯'],['rectangle','📏 直筒型','上下身均勻、腰線較平']];
 
@@ -704,10 +703,6 @@ function drawAct(){
   const pct=Math.min(100,Math.round(st/8000*100));
   $('aSteps').textContent=st.toLocaleString();$('aBar').style.width=pct+'%';
   $('aPct').textContent='目標 8,000 步 · 已達成 '+pct+'%';$('aKcal').textContent=Math.round(st*0.04);
-  
-  if (fl > 0) {
-    $('fallBadge').classList.remove('hidden');
-  }
 
   let sub='尚未收到裝置資料';
   if(ACT_ERR)sub='⚠️ '+ACT_ERR;
@@ -756,6 +751,12 @@ function demoAct(){
   demo=true;
   ACT={steps:5000+Math.round(Math.random()*3000),fall:0,ts:0};drawAct()}
 setInterval(()=>{if(S.tab==='act'&&!demo)fetchAct()},5000);
+
+// 初始化顯示本機已延續的今日步數
+if (STEP_STATE.todayTotal > 0) {
+  ACT = { steps: STEP_STATE.todayTotal, fall: 0, ts: Math.floor(Date.now() / 1000) };
+  drawAct();
+}
 
 /* ===== 藍牙 (Web Bluetooth API) 整合與每 5 秒自動上傳 ===== */
 const serviceUuid = "19b10000-e8f2-537e-4f6c-d104768a1214";
