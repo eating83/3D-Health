@@ -725,6 +725,13 @@ function demoAct(){
   ACT={steps:5000+Math.round(Math.random()*3000),fall:0,ts:0};drawAct()}
 setInterval(()=>{if(S.tab==='act'&&!demo)fetchAct()},5000);
 
+/* 這些變數必須在 drawAct() 第一次被呼叫之前宣告，否則會 TDZ 錯誤 */
+let bleDevice;
+let walkTimer = null;
+let bleConnected = false;
+let stepDirty = false;
+let stepUploadBusy = false;
+
 // 初始化顯示本機已延續的今日步數
 if (STEP_STATE.todayTotal > 0) {
   ACT = { steps: STEP_STATE.todayTotal, fall: 0, ts: Math.floor(Date.now() / 1000) };
@@ -734,11 +741,6 @@ if (STEP_STATE.todayTotal > 0) {
 /* ===== 藍牙 (Web Bluetooth API) 整合與每 5 秒自動上傳 ===== */
 const serviceUuid = "19b10000-e8f2-537e-4f6c-d104768a1214";
 const stepCharUuid = "19b10001-e8f2-537e-4f6c-d104768a1214";
-let bleDevice;
-let walkTimer = null;
-let bleConnected = false;
-let stepDirty = false;
-let stepUploadBusy = false;
 
 async function uploadStepsEvery5Sec() {
   checkMidnightRollover();
@@ -778,7 +780,7 @@ setInterval(uploadStepsEvery5Sec, 5000);
 
 document.getElementById('ble-connect-btn').addEventListener('click', async () => {
   if (!navigator.bluetooth) {
-    toast('⚠️ iPhone 請改用 Bluefy 瀏覽器開啟網頁！');
+    toast(/iPhone|iPad|iPod/.test(navigator.userAgent)?'⚠️ iPhone 請改用 Bluefy 瀏覽器開啟網頁！':'⚠️ 此瀏覽器不支援藍牙，請改用 Chrome 或 Edge');
     return;
   }
   const btn = document.getElementById('ble-connect-btn');
