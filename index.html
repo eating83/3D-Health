@@ -45,7 +45,7 @@ input[type=number],select{outline:none}
 <h1 class="text-5xl font-black italic leading-tight" style="transform:skew(-6deg)">3D 體態<br><span class="text-orange-400">管理</span></h1>
 <p class="mt-4 text-sm font-bold text-slate-300">BMI · 三圍 · 飲食 · 運動 · 趨勢追蹤</p>
 <div class="flex gap-2 mt-6 text-[11px] font-black italic"><span class="px-3 py-1 rounded-full bg-white/10 border border-white/20">💪 塑形</span><span class="px-3 py-1 rounded-full bg-white/10 border border-white/20">🔥 燃脂</span><span class="px-3 py-1 rounded-full bg-white/10 border border-white/20">⚡ 健康</span></div>
-<button onclick="initAudio(); var c=document.getElementById('cover');c.style.opacity=0;c.style.transform='scale(1.06)';c.style.pointerEvents='none';setTimeout(function(){c.remove()},500)" class="mt-10 bg-orange-500 active:scale-95 text-white text-lg font-black italic tracking-wider px-12 py-4 rounded-2xl" style="transform:skew(-6deg);animation:pulse2 1.8s infinite">開始訓練 ▶</button>
+<button onclick="if(typeof initAudio==='function')initAudio(); var c=document.getElementById('cover');c.style.opacity=0;c.style.transform='scale(1.06)';c.style.pointerEvents='none';setTimeout(function(){c.remove()},500)" class="mt-10 bg-orange-500 active:scale-95 text-white text-lg font-black italic tracking-wider px-12 py-4 rounded-2xl" style="transform:skew(-6deg);animation:pulse2 1.8s infinite">開始訓練 ▶</button>
 <p class="mt-5 text-[11px] text-slate-400">動起來，雕塑更好的自己</p>
 </div></div>
 <div class="h-full w-full flex flex-col overflow-hidden">
@@ -199,9 +199,6 @@ input[type=number],select{outline:none}
 </div>
 
 <script>
-// (1) 防報錯：如果網頁在非藍牙支援環境（例如電腦某些舊版瀏覽器、沒有藍牙硬體）
-// 或被安全擋下而報錯，我們依然確保其他 UI 能正常初始化
-try {
 const $=id=>document.getElementById(id);
 const COLORS=['#4f46e5','#ec4899','#10b981','#f97316','#1f2937'];
 const SLOGANS=["汗水是脂肪哭泣的眼淚，繼續加油！","今天的努力，是為了明天更美的自己。","別放棄，你的潛力比你想像的還要大！","好身材不是天生，是你的自律給的。","每一次運動，都在重新雕塑你的未來。","管住嘴，邁開腿，完美體態在向你招手！","慢慢來比較快，堅持才是最後的贏家。","將健康變成習慣，而不是短暫的目標。","就算只進步一點點，也比站在原地好。","現在放棄的話，比賽就結束了喔！"];
@@ -247,8 +244,8 @@ const SHAPES=[['apple','🍎 蘋果型','脂肪集中於腹部與上半身'],['p
 const S={h:0,w:0,age:0,c:0,wa:0,hi:0,g:'female',shape:'apple',act:1.2,diet:'standard',rec:[],stepRec:[],shapeMode:'manual',color:COLORS[0],anim:false,walk:false,tab:'data'};
 try{const r=JSON.parse(localStorage.getItem('hrec')||'[]');if(Array.isArray(r))S.rec=r}catch(e){}
 try{const sr=JSON.parse(localStorage.getItem('hsteprec')||'[]');if(Array.isArray(sr))S.stepRec=sr}catch(e){}
-window.save = function(){try{localStorage.setItem('hrec',JSON.stringify(S.rec));localStorage.setItem('hsteprec',JSON.stringify(S.stepRec))}catch(e){}}
-window.toast = function(t){const e=$('toast');e.textContent=t;e.classList.remove('hidden');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.add('hidden'),2500)}
+function save(){try{localStorage.setItem('hrec',JSON.stringify(S.rec));localStorage.setItem('hsteprec',JSON.stringify(S.stepRec))}catch(e){}}
+function toast(t){const e=$('toast');e.textContent=t;e.classList.remove('hidden');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.add('hidden'),2500)}
 
 // ---------- UI 組裝 ----------
 $('pal').innerHTML=COLORS.map(c=>`<button data-c="${c}" class="w-6 h-6 rounded-full border-2 border-transparent" style="background:${c}"></button>`).join('');
@@ -296,11 +293,12 @@ function autoShape(){
 function setMode(m){S.shapeMode=m;refresh()}
 window.setMode = setMode;
 $('modeSw').onclick=e=>{const m=e.target.dataset.m;if(m)setMode(m)};
-window.addRec = function(){
+function addRec(){
   if(S.w<=0){toast('請先輸入有效的體重數值喔！');return}
   const n=new Date(),p=x=>String(x).padStart(2,'0');
   S.rec.push({id:Date.now(),time:`${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())}`,weight:+S.w.toFixed(1),bmi:+bmi().toFixed(1)});
   save();toast(`已成功記錄 ${S.w.toFixed(1)} kg！`);if(S.tab==='trend')renderTrend()}
+window.addRec = addRec;
 
 /* ===== 每日步數狀態、跨日 24:00 結算歸零、重啟接續累加 ===== */
 function dateKeysFromObj(d){
@@ -364,12 +362,12 @@ function syncDailyStep(steps, notify=false){
   if(S.tab === 'trend') renderTrend();
 }
 
-window.recordTodaySteps = function(){
+function recordTodaySteps(){
   checkMidnightRollover();
-  // 注意，這裡需要存取 ACT 變數，等下宣告
   const st = Math.max((window.ACT && +window.ACT.steps) || 0, STEP_STATE.todayTotal || 0);
   syncDailyStep(st, true);
 }
+window.recordTodaySteps = recordTodaySteps;
 
 // 跨日 24:00 檢查：把前一天最終總步數結算存進每日步數明細，並將今日步數重置為 0
 function checkMidnightRollover() {
@@ -400,6 +398,7 @@ function checkMidnightRollover() {
     if (S.tab === 'trend') renderTrend();
   }
 }
+window.checkMidnightRollover = checkMidnightRollover;
 
 // 計算跨重啟與跨日後的今日真實累積步數
 function processHardwareSteps(rawHwSteps) {
@@ -417,6 +416,7 @@ function processHardwareSteps(rawHwSteps) {
   saveStepState();
   return totalToday;
 }
+window.processHardwareSteps = processHardwareSteps;
 
 // 每秒檢查是否跨越 24:00 午夜
 setInterval(checkMidnightRollover, 1000);
@@ -619,9 +619,6 @@ cv.addEventListener('pointerup',()=>{drag=false;if(!moved&&!S.anim&&!S.walk){S.a
 
 resize();drawScreen();build();refresh();
 new ResizeObserver(resize).observe(mount);
-} catch (error) {
-  console.error("Initialization Error:", error);
-}
 </script>
 <script>
 /* ===== 雲端儲存 (Firebase Firestore REST) ===== */
