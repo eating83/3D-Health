@@ -496,12 +496,17 @@ function drawAct(){
   $('aSteps').textContent=st.toLocaleString();$('aBar').style.width=pct+'%';
   $('aPct').textContent='目標 8,000 步 · 已達成 '+pct+'%';$('aKcal').textContent=Math.round(st*0.04);
   let sub='尚未收到裝置資料';
-  if(demo)sub='模擬資料（非真實裝置）';
-  else if(ACT_ERR)sub='⚠️ '+ACT_ERR;
+  
+  // ==========================================
+  // 【修正重點】移除 demo 變數的判斷，讓藍牙接收到的真實步數可以直接顯示，而不會被判定成「模擬資料」。
+  // ==========================================
+  // if(demo)sub='模擬資料（非真實裝置）'; 
+  
+  if(ACT_ERR)sub='⚠️ '+ACT_ERR;
   else if(ts){const m=Math.max(0,Math.round((Date.now()/1000-ts)/60));sub=m<1?'剛剛同步':m<60?m+' 分鐘前同步':new Date(ts*1000).toLocaleString()+' 同步'}
-  if(!demo&&!ACT_ERR&&ACT&&!ts)sub='已收到裝置資料';$('actSub').textContent=sub;
-  const wifiOn=!demo&&!ACT_ERR&&!!ts&&(Date.now()/1000-ts)<150;
-  const wifiOff=!demo&&!wifiOn&&((!!ts&&!ACT_ERR)||(ACT_ERR.indexOf('雲端還沒有')===0));
+  if(!ACT_ERR&&ACT&&!ts)sub='已收到裝置資料';$('actSub').textContent=sub;
+  const wifiOn=!ACT_ERR&&!!ts&&(Date.now()/1000-ts)<150;
+  const wifiOff=!wifiOn&&((!!ts&&!ACT_ERR)||(ACT_ERR.indexOf('雲端還沒有')===0));
   const wEl=$('wifiOk');
   if(wifiOn){wEl.className='bg-emerald-50 p-3 rounded-2xl flex items-center gap-2 text-xs font-bold text-emerald-700';wEl.textContent='📶 WiFi 已連線';wEl.style.display='flex'}
   else if(wifiOff){wEl.className='bg-red-50 p-3 rounded-2xl flex items-center gap-2 text-xs font-bold text-red-600';wEl.textContent='📵 WiFi 已斷線';wEl.style.display='flex'}
@@ -531,6 +536,7 @@ const serviceUuid = "19b10000-e8f2-537e-4f6c-d104768a1214";
 const stepCharUuid = "19b10001-e8f2-537e-4f6c-d104768a1214";
 let bleDevice;
 let walkTimer = null; // 控制走路動畫的計時器
+let bleConnected = false; // 新增藍牙連線狀態標記
 
 document.getElementById('ble-connect-btn').addEventListener('click', async () => {
   const btn = document.getElementById('ble-connect-btn');
@@ -549,7 +555,11 @@ document.getElementById('ble-connect-btn').addEventListener('click', async () =>
     await stepCharacteristic.startNotifications();
     stepCharacteristic.addEventListener('characteristicvaluechanged', handleStepUpdate);
     
+    bleConnected = true; // 標記為已連線
+    demo = false;        // 確保關閉模擬資料模式
+
     bleDevice.addEventListener('gattserverdisconnected', () => {
+       bleConnected = false;
        btn.innerText = '+ 連接藍牙';
        btn.className = 'bg-indigo-600 text-white text-xs font-bold px-3 py-2 rounded-xl active:scale-95';
        toast('🔴 裝置已斷線');
@@ -571,12 +581,11 @@ function handleStepUpdate(event) {
   const decoder = new TextDecoder('utf-8');
   const stepCount = parseInt(decoder.decode(value), 10);
   
-  // 1. 更新頁面狀態
+  // 1. 更新頁面狀態 (不開啟 demo 模式)
   ACT = ACT || { steps: 0, fall: 0, ts: 0 };
   ACT.steps = stepCount;
   ACT.ts = Math.floor(Date.now() / 1000);
   
-  demo = true;
   drawAct();
   
   // 2. 觸發 3D 公仔「原地走路」動畫
@@ -594,6 +603,13 @@ function handleStepUpdate(event) {
       build(); 
   }, 1500);
 }
+
+// 覆蓋原本的 fetchAct，當藍牙連線時暫停去雲端抓資料，以免步數被舊資料覆蓋
+const originalFetchAct = fetchAct;
+fetchAct = async function() {
+    if(bleConnected) return; // 如果藍牙連線中，就不去雲端抓資料
+    return originalFetchAct();
+};
 </script>
 </body>
 </html>
