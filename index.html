@@ -197,7 +197,7 @@ rectangle:['深蹲 + 彈力帶側走 4組','快走 (35分) + 側腹捲腹 4組',
 maintain:['快走或慢跑 30分','核心喚醒：死蟲式+鳥狗式+棒式 (20分)','瑜珈或皮拉提斯 (40分)','恢復：散步 6000步 + 肩頸伸展','彈力帶或輕啞鈴全身 (30分)','騎單車、健行或游泳 (45分)','休息：全身滾筒按摩']};
 const SHAPES=[['apple','🍎 蘋果型','脂肪集中於腹部與上半身'],['pear','🍐 梨型','脂肪集中於臀部與大腿'],['hourglass','⏳ 沙漏型','胸臀豐滿、腰線明顯'],['rectangle','📏 直筒型','上下身均勻、腰線較平']];
 
-const S={h:0,w:0,age:0,c:0,wa:0,hi:0,g:'female',shape:'apple',act:1.2,diet:'standard',rec:[],shapeMode:'manual',color:COLORS[0],anim:false,tab:'data'};
+const S={h:0,w:0,age:0,c:0,wa:0,hi:0,g:'female',shape:'apple',act:1.2,diet:'standard',rec:[],shapeMode:'manual',color:COLORS[0],anim:false,walk:false,tab:'data'};
 try{const r=JSON.parse(localStorage.getItem('hrec')||'[]');if(Array.isArray(r))S.rec=r}catch(e){}
 function save(){try{localStorage.setItem('hrec',JSON.stringify(S.rec))}catch(e){}}
 function toast(t){const e=$('toast');e.textContent=t;e.classList.remove('hidden');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.add('hidden'),2500)}
@@ -344,24 +344,76 @@ function build(){
   pk.add(at(new THREE.Mesh(new THREE.BoxGeometry(.38,.025,.02),mt.black),0,.1,0));
   const pb=at(new THREE.Mesh(new THREE.CylinderGeometry(.19,.19,.02,32,1,false,0,Math.PI),mt.white),0,.1,-.005);pb.rotation.set(Math.PI/2,Math.PI/2,0);pk.add(pb);model.add(pk);
   const shX=.43*sC+.08,maxR=Math.max(.5*sC,.56*sB,.56*sH),nat=.22+Math.atan2(Math.max(0,maxR-shX)+.08,.7);
+  
+  // 建立手臂和腿，保留它們的參考以便在動畫中旋轉
+  const limbs = { armL: null, armR: null, legL: null, legR: null };
+  
   const arm=side=>{
     const g=new THREE.Group();g.position.set(side*shX,2.16,0);g.add(sp(.155,mt.clothes));
-    g.add(at(cy(.15,.168,.28,mt.clothes),0,-.14,0));g.add(at(cy(.172,.172,.035,mt.white),0,-.27,0));
+    const upperArm = at(cy(.15,.168,.28,mt.clothes),0,-.14,0); g.add(upperArm);
+    g.add(at(cy(.172,.172,.035,mt.white),0,-.27,0));
     const fg=new THREE.Group();fg.position.y=-.26;fg.rotation.x=-.1;fg.add(at(cy(.12,.1,.38,mt.skin),0,-.19,0));
     const hd=new THREE.Group();hd.position.y=-.42;
     const pm=sp(.125,mt.skin);pm.scale.set(.95,1.08,.72);hd.add(pm);
     const th=at(sp(.048,mt.skin),-side*.105,.01,.045);th.scale.set(.85,1.5,.85);th.rotation.set(.25,0,side*.55);hd.add(th);
     for(let i=0;i<4;i++){const f=at(sp(.034,mt.skin),-side*(.066-i*.044),(i===1||i===2)?-.125:-.112,.01);f.scale.set(.88,1.65,.88);hd.add(f)}
-    fg.add(hd);g.add(fg);return g};
-  const aL=arm(1),aR=arm(-1);model.add(aL,aR);
-  [1,-1].forEach(s=>{const lg=new THREE.Group();lg.position.set(s*.25*sH,.6,0);lg.add(at(cy(.15,.15,.7,mt.skin),0,-.1,0));lg.add(at(new THREE.Mesh(new THREE.BoxGeometry(.22,.15,.38),mt.clothes),0,-.52,.08));model.add(lg)});
+    fg.add(hd);g.add(fg);return { root: g, forearm: fg }};
+  
+  const aL=arm(1), aR=arm(-1);
+  model.add(aL.root, aR.root);
+  limbs.armL = aL; limbs.armR = aR;
+
+  const leg = (side) => {
+      const lg = new THREE.Group();
+      lg.position.set(side*.25*sH,.6,0);
+      lg.add(at(cy(.15,.15,.7,mt.skin),0,-.1,0));
+      lg.add(at(new THREE.Mesh(new THREE.BoxGeometry(.22,.15,.38),mt.clothes),0,-.52,.08));
+      return lg;
+  };
+  
+  limbs.legL = leg(1); limbs.legR = leg(-1);
+  model.add(limbs.legL, limbs.legR);
+  
   avatar.add(model);
   const t0=Date.now();
+  
+  // 核心動畫更新函式
   upd=()=>{const t=(Date.now()-t0)/1e3;let a;
-    if(S.anim){if(bad){model.position.x=Math.sin(t*40)*.03;model.position.y=-1;a=nat+.35+Math.sin(t*25)*.12}
-      else{model.position.y=-1+Math.abs(Math.sin(t*6))*.4;a=2.55+Math.sin(t*12)*.22}}
-    else{model.position.y=-1+Math.sin(t*2)*.02;model.position.x=0;a=nat+Math.sin(t*2)*.035}
-    aL.rotation.z=a;aR.rotation.z=-a};
+    if(S.walk) {
+        // --- 走路動畫：擺手與抬腿 ---
+        model.position.y = -1;
+        model.position.x = 0;
+        const speed = 8; // 走路動畫速度
+        const swing = Math.sin(t * speed);
+        const swingArms = swing * 0.8;
+        const swingLegs = swing * 0.6;
+        
+        // 手臂前後擺動
+        aL.root.rotation.x = swingArms;
+        aR.root.rotation.x = -swingArms;
+        aL.root.rotation.z = nat;
+        aR.root.rotation.z = -nat;
+        
+        // 腿部前後擺動
+        limbs.legL.rotation.x = -swingLegs;
+        limbs.legR.rotation.x = swingLegs;
+        
+    } else if(S.anim){
+        // --- 原本的歡呼/跌倒跳躍動畫 ---
+        if(bad){model.position.x=Math.sin(t*40)*.03;model.position.y=-1;a=nat+.35+Math.sin(t*25)*.12}
+        else{model.position.y=-1+Math.abs(Math.sin(t*6))*.4;a=2.55+Math.sin(t*12)*.22}
+        aL.root.rotation.x = 0; aR.root.rotation.x = 0;
+        aL.root.rotation.z = a; aR.root.rotation.z = -a;
+        limbs.legL.rotation.x = 0; limbs.legR.rotation.x = 0;
+    }
+    else{
+        // --- 靜止待機呼吸動畫 ---
+        model.position.y=-1+Math.sin(t*2)*.02;model.position.x=0;a=nat+Math.sin(t*2)*.035;
+        aL.root.rotation.x = 0; aR.root.rotation.x = 0;
+        aL.root.rotation.z=a; aR.root.rotation.z=-a;
+        limbs.legL.rotation.x = 0; limbs.legR.rotation.x = 0;
+    }
+  };
   const nbb=nb;$('bubble').textContent=nbb>=24?'太胖了...跳不動🥵':'太瘦了...沒力氣🤕';$('bubble').classList.toggle('hidden',!bad)}
 
 // 旋轉與點擊 (只在畫布上判定)
@@ -369,7 +421,7 @@ let rotY=0,drag=false,moved=false,lx=0;
 const cv=ren.domElement;
 cv.addEventListener('pointerdown',e=>{drag=true;moved=false;lx=e.clientX;cv.setPointerCapture(e.pointerId)});
 cv.addEventListener('pointermove',e=>{if(!drag)return;const d=e.clientX-lx;if(Math.abs(d)>2)moved=true;rotY+=d*.012;lx=e.clientX});
-cv.addEventListener('pointerup',()=>{drag=false;if(!moved&&!S.anim){S.anim=true;build();setTimeout(()=>{S.anim=false;build()},2000)}});
+cv.addEventListener('pointerup',()=>{drag=false;if(!moved&&!S.anim&&!S.walk){S.anim=true;build();setTimeout(()=>{S.anim=false;build()},2000)}});
 (function loop(){requestAnimationFrame(loop);main.rotation.y+=(rotY-main.rotation.y)*.1;upd();ren.render(scene,cam)})();
 
 resize();drawScreen();build();refresh();
@@ -478,6 +530,7 @@ setInterval(()=>{if(S.tab==='act'&&!demo)fetchAct()},15000);
 const serviceUuid = "19b10000-e8f2-537e-4f6c-d104768a1214";
 const stepCharUuid = "19b10001-e8f2-537e-4f6c-d104768a1214";
 let bleDevice;
+let walkTimer = null; // 控制走路動畫的計時器
 
 document.getElementById('ble-connect-btn').addEventListener('click', async () => {
   const btn = document.getElementById('ble-connect-btn');
@@ -518,20 +571,28 @@ function handleStepUpdate(event) {
   const decoder = new TextDecoder('utf-8');
   const stepCount = parseInt(decoder.decode(value), 10);
   
-  // 1. 更新頁面狀態 (覆蓋目前的 ACT 資料並刷新 UI)
+  // 1. 更新頁面狀態
   ACT = ACT || { steps: 0, fall: 0, ts: 0 };
   ACT.steps = stepCount;
   ACT.ts = Math.floor(Date.now() / 1000);
   
-  demo = true; // 暫停自動抓雲端資料，以藍牙為主
-  drawAct();   // 呼叫你原本寫好的 UI 更新函式
+  demo = true;
+  drawAct();
   
-  // 2. 觸發 3D 公仔動畫 (模擬走一步)
-  if(!S.anim) {
-    S.anim = true;
-    build();
-    setTimeout(() => { S.anim = false; build(); }, 1500);
+  // 2. 觸發 3D 公仔「原地走路」動畫
+  S.walk = true; // 開啟走路模式
+  build();
+  
+  // 如果已經有計時器在倒數，就先清除掉 (重新計時 1.5 秒)
+  if (walkTimer) {
+      clearTimeout(walkTimer);
   }
+  
+  // 設定 1.5 秒後停止走路
+  walkTimer = setTimeout(() => { 
+      S.walk = false; 
+      build(); 
+  }, 1500);
 }
 </script>
 </body>
