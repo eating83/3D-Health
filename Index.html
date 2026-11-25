@@ -133,7 +133,17 @@ input[type=number],select{outline:none}
 
       <!-- 趨勢 -->
       <div id="t-act" class="tab space-y-4">
-        <div class="flex items-center justify-between"><div><h2 class="text-base font-black">⌚ 穿戴裝置</h2><p id="actSub" class="text-xs text-slate-400"></p></div><div class="flex gap-1.5"><button onclick="renderAct();toast('重新讀取中…')" class="bg-indigo-50 text-indigo-600 text-xs font-bold px-2.5 py-2 rounded-xl">重新整理</button><button id="aDemo" onclick="demoAct()" class="bg-slate-100 text-slate-600 text-xs font-bold px-2.5 py-2 rounded-xl">看模擬資料</button></div></div>
+        <div class="flex items-center justify-between">
+  <div>
+    <h2 class="text-base font-black">⌚ 穿戴裝置</h2>
+    <p id="actSub" class="text-xs text-slate-400"></p>
+  </div>
+  <div class="flex gap-1.5">
+    <button id="ble-connect-btn" class="bg-indigo-600 text-white text-xs font-bold px-3 py-2 rounded-xl active:scale-95 transition-transform shadow-sm">+ 連接藍牙</button>
+    <button onclick="renderAct();toast('重新讀取中…')" class="bg-indigo-50 text-indigo-600 text-xs font-bold px-2.5 py-2 rounded-xl">重新整理</button>
+    <button id="aDemo" onclick="demoAct()" class="bg-slate-100 text-slate-600 text-xs font-bold px-2.5 py-2 rounded-xl">看模擬資料</button>
+  </div>
+</div>
         <div id="wifiOk" style="display:none" class="bg-emerald-50 p-3 rounded-2xl items-center gap-2 text-xs font-bold text-emerald-700">📶 WiFi 已連線</div>
         <div class="bg-gradient-to-br from-indigo-600 to-purple-600 text-white p-4 rounded-2xl"><div class="text-xs font-bold text-indigo-100">今日步數</div><div class="flex items-end gap-2"><span id="aSteps" class="text-4xl font-black">0</span><span class="text-sm mb-1 text-indigo-100">步</span></div><div class="h-2 bg-white/25 rounded-full mt-2 overflow-hidden"><div id="aBar" class="h-full bg-orange-400 rounded-full" style="width:0%"></div></div><div class="flex justify-between text-[11px] mt-1.5 text-indigo-100"><span id="aPct"></span><span>🔥 約 <b id="aKcal">0</b> kcal</span></div></div>
                         <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-xs space-y-2"><div class="font-black text-slate-700">🔌 連接 XIAO ESP32S3 + MPU6050 裝置</div><div class="text-slate-500">登入雲端後，把下面的裝置代碼填入程式開頭的 DEVICE_ID：</div><div class="flex gap-2"><code id="devCode" class="flex-1 min-w-0 break-all bg-white border border-slate-200 rounded-lg p-2 text-[10px]"></code><button onclick="copyCode()" class="bg-indigo-600 text-white font-bold px-3 rounded-lg shrink-0">複製</button></div><div class="text-[11px] text-slate-400">步數僅供參考，可能有誤差，不能取代專業的醫療設備。</div></div>
