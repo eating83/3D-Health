@@ -149,7 +149,7 @@ input[type=number],select{outline:none}
             <button id="aDemo" onclick="demoAct()" class="bg-slate-100 text-slate-600 text-xs font-bold px-2.5 py-2 rounded-xl">看模擬資料</button>
           </div>
         </div>
-        <div id="wifiOk" style="display:none" class="bg-emerald-50 p-3 rounded-2xl items-center gap-2 text-xs font-bold text-emerald-700">📶 WiFi 已連線</div>
+        <div id="wifiOk" style="display:none" class="bg-emerald-50 p-3 rounded-2xl items-center gap-2 text-xs font-bold text-emerald-700">📶 藍牙已連線</div>
         
         <div class="bg-gradient-to-br from-indigo-600 to-purple-600 text-white p-4 rounded-2xl">
           <div class="flex justify-between items-start">
@@ -199,6 +199,9 @@ input[type=number],select{outline:none}
 </div>
 
 <script>
+// (1) 防報錯：如果網頁在非藍牙支援環境（例如電腦某些舊版瀏覽器、沒有藍牙硬體）
+// 或被安全擋下而報錯，我們依然確保其他 UI 能正常初始化
+try {
 const $=id=>document.getElementById(id);
 const COLORS=['#4f46e5','#ec4899','#10b981','#f97316','#1f2937'];
 const SLOGANS=["汗水是脂肪哭泣的眼淚，繼續加油！","今天的努力，是為了明天更美的自己。","別放棄，你的潛力比你想像的還要大！","好身材不是天生，是你的自律給的。","每一次運動，都在重新雕塑你的未來。","管住嘴，邁開腿，完美體態在向你招手！","慢慢來比較快，堅持才是最後的贏家。","將健康變成習慣，而不是短暫的目標。","就算只進步一點點，也比站在原地好。","現在放棄的話，比賽就結束了喔！"];
@@ -244,8 +247,8 @@ const SHAPES=[['apple','🍎 蘋果型','脂肪集中於腹部與上半身'],['p
 const S={h:0,w:0,age:0,c:0,wa:0,hi:0,g:'female',shape:'apple',act:1.2,diet:'standard',rec:[],stepRec:[],shapeMode:'manual',color:COLORS[0],anim:false,walk:false,tab:'data'};
 try{const r=JSON.parse(localStorage.getItem('hrec')||'[]');if(Array.isArray(r))S.rec=r}catch(e){}
 try{const sr=JSON.parse(localStorage.getItem('hsteprec')||'[]');if(Array.isArray(sr))S.stepRec=sr}catch(e){}
-function save(){try{localStorage.setItem('hrec',JSON.stringify(S.rec));localStorage.setItem('hsteprec',JSON.stringify(S.stepRec))}catch(e){}}
-function toast(t){const e=$('toast');e.textContent=t;e.classList.remove('hidden');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.add('hidden'),2500)}
+window.save = function(){try{localStorage.setItem('hrec',JSON.stringify(S.rec));localStorage.setItem('hsteprec',JSON.stringify(S.stepRec))}catch(e){}}
+window.toast = function(t){const e=$('toast');e.textContent=t;e.classList.remove('hidden');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.add('hidden'),2500)}
 
 // ---------- UI 組裝 ----------
 $('pal').innerHTML=COLORS.map(c=>`<button data-c="${c}" class="w-6 h-6 rounded-full border-2 border-transparent" style="background:${c}"></button>`).join('');
@@ -293,12 +296,11 @@ function autoShape(){
 function setMode(m){S.shapeMode=m;refresh()}
 window.setMode = setMode;
 $('modeSw').onclick=e=>{const m=e.target.dataset.m;if(m)setMode(m)};
-function addRec(){
+window.addRec = function(){
   if(S.w<=0){toast('請先輸入有效的體重數值喔！');return}
   const n=new Date(),p=x=>String(x).padStart(2,'0');
   S.rec.push({id:Date.now(),time:`${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())}`,weight:+S.w.toFixed(1),bmi:+bmi().toFixed(1)});
   save();toast(`已成功記錄 ${S.w.toFixed(1)} kg！`);if(S.tab==='trend')renderTrend()}
-window.addRec = addRec;
 
 /* ===== 每日步數狀態、跨日 24:00 結算歸零、重啟接續累加 ===== */
 function dateKeysFromObj(d){
@@ -362,12 +364,12 @@ function syncDailyStep(steps, notify=false){
   if(S.tab === 'trend') renderTrend();
 }
 
-function recordTodaySteps(){
+window.recordTodaySteps = function(){
   checkMidnightRollover();
+  // 注意，這裡需要存取 ACT 變數，等下宣告
   const st = Math.max((window.ACT && +window.ACT.steps) || 0, STEP_STATE.todayTotal || 0);
   syncDailyStep(st, true);
 }
-window.recordTodaySteps = recordTodaySteps;
 
 // 跨日 24:00 檢查：把前一天最終總步數結算存進每日步數明細，並將今日步數重置為 0
 function checkMidnightRollover() {
@@ -619,6 +621,9 @@ cv.addEventListener('pointerup',()=>{drag=false;if(!moved&&!S.anim&&!S.walk){S.a
 
 resize();drawScreen();build();refresh();
 new ResizeObserver(resize).observe(mount);
+} catch (error) {
+  console.error("Initialization Error:", error);
+}
 </script>
 <script>
 /* ===== 雲端儲存 (Firebase Firestore REST) ===== */
@@ -725,8 +730,8 @@ window.drawAct = function(){
   const wifiOff=!wifiOn&&((!!ts&&!ACT_ERR)||(ACT_ERR.indexOf('雲端還沒有')===0));
   const wEl=document.getElementById('wifiOk');
   if(wEl){
-    if(wifiOn){wEl.className='bg-emerald-50 p-3 rounded-2xl flex items-center gap-2 text-xs font-bold text-emerald-700';wEl.textContent='📶 WiFi 已連線';wEl.style.display='flex'}
-    else if(wifiOff){wEl.className='bg-red-50 p-3 rounded-2xl flex items-center gap-2 text-xs font-bold text-red-600';wEl.textContent='📵 WiFi 已斷線';wEl.style.display='flex'}
+    if(wifiOn){wEl.className='bg-emerald-50 p-3 rounded-2xl flex items-center gap-2 text-xs font-bold text-emerald-700';wEl.textContent='📶 藍牙已連線';wEl.style.display='flex'}
+    else if(wifiOff){wEl.className='bg-red-50 p-3 rounded-2xl flex items-center gap-2 text-xs font-bold text-red-600';wEl.textContent='📵 藍牙已斷線';wEl.style.display='flex'}
     else wEl.style.display='none';
   }
   const elDemo = document.getElementById('aDemo'); if(elDemo) elDemo.textContent=demo?'改看真實資料':'看模擬資料'}
