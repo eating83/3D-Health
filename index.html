@@ -31,9 +31,6 @@ input[type=number],select{outline:none}
   </div>
 </div>
 
-<!-- 跌倒警報音效 -->
-<!-- 這裡使用瀏覽器內建的 Web Audio API 來產生合成音，不依賴外部音檔 -->
-
 <div id="cover" class="fixed inset-0 z-[100] flex flex-col items-center justify-center text-white overflow-hidden" style="background:linear-gradient(160deg,#0f172a 0%,#1e1b4b 55%,#4f46e5 100%);transition:opacity .5s,transform .5s;padding-top:env(safe-area-inset-top,0px)">
 <style>@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}@keyframes pulse2{0%,100%{box-shadow:0 0 0 0 rgba(249,115,22,.6)}50%{box-shadow:0 0 0 14px rgba(249,115,22,0)}}</style>
 <div class="absolute inset-0 opacity-20" style="background:repeating-linear-gradient(-55deg,transparent 0 28px,#f97316 28px 36px)"></div>
@@ -45,7 +42,7 @@ input[type=number],select{outline:none}
 <h1 class="text-5xl font-black italic leading-tight" style="transform:skew(-6deg)">3D 體態<br><span class="text-orange-400">管理</span></h1>
 <p class="mt-4 text-sm font-bold text-slate-300">BMI · 三圍 · 飲食 · 運動 · 趨勢追蹤</p>
 <div class="flex gap-2 mt-6 text-[11px] font-black italic"><span class="px-3 py-1 rounded-full bg-white/10 border border-white/20">💪 塑形</span><span class="px-3 py-1 rounded-full bg-white/10 border border-white/20">🔥 燃脂</span><span class="px-3 py-1 rounded-full bg-white/10 border border-white/20">⚡ 健康</span></div>
-<button onclick="if(typeof initAudio==='function')initAudio(); var c=document.getElementById('cover');c.style.opacity=0;c.style.transform='scale(1.06)';c.style.pointerEvents='none';setTimeout(function(){c.remove()},500)" class="mt-10 bg-orange-500 active:scale-95 text-white text-lg font-black italic tracking-wider px-12 py-4 rounded-2xl" style="transform:skew(-6deg);animation:pulse2 1.8s infinite">開始訓練 ▶</button>
+<button onclick="initAudio(); var c=document.getElementById('cover');c.style.opacity=0;c.style.transform='scale(1.06)';c.style.pointerEvents='none';setTimeout(function(){c.remove()},500)" class="mt-10 bg-orange-500 active:scale-95 text-white text-lg font-black italic tracking-wider px-12 py-4 rounded-2xl" style="transform:skew(-6deg);animation:pulse2 1.8s infinite">開始訓練 ▶</button>
 <p class="mt-5 text-[11px] text-slate-400">動起來，雕塑更好的自己</p>
 </div></div>
 <div class="h-full w-full flex flex-col overflow-hidden">
@@ -199,6 +196,12 @@ input[type=number],select{outline:none}
 </div>
 
 <script>
+/* ===== 共用狀態（藍牙／活動／雲端分頁都會用到，集中在最前面宣告）===== */
+let ACT=null, demo=false, ACT_ERR='';                         // 穿戴裝置資料 / 模擬模式 / 錯誤訊息
+let bleDevice=null, bleConnected=false;                       // 藍牙連線狀態
+let bleManualStop=false, bleReconnecting=false;               // 主動中斷 / 重連中
+let stepDirty=false, stepUploadBusy=false, walkTimer=null;    // 步數上傳與走路動畫計時
+
 const $=id=>document.getElementById(id);
 const COLORS=['#4f46e5','#ec4899','#10b981','#f97316','#1f2937'];
 const SLOGANS=["汗水是脂肪哭泣的眼淚，繼續加油！","今天的努力，是為了明天更美的自己。","別放棄，你的潛力比你想像的還要大！","好身材不是天生，是你的自律給的。","每一次運動，都在重新雕塑你的未來。","管住嘴，邁開腿，完美體態在向你招手！","慢慢來比較快，堅持才是最後的贏家。","將健康變成習慣，而不是短暫的目標。","就算只進步一點點，也比站在原地好。","現在放棄的話，比賽就結束了喔！"];
@@ -252,7 +255,6 @@ $('pal').innerHTML=COLORS.map(c=>`<button data-c="${c}" class="w-6 h-6 rounded-f
 $('pal').onclick=e=>{const c=e.target.dataset.c;if(c){S.color=c;paintPal();build()}};
 function paintPal(){document.querySelectorAll('#pal button').forEach(b=>{b.style.borderColor=b.dataset.c===S.color?'#1e293b':'transparent';b.style.transform=b.dataset.c===S.color?'scale(1.1)':''})}
 paintPal();
-void [['c','胸圍',88,60,130],['wa','腰圍',70,50,120],['hi','臀圍',92,65,135]].map(([k,l,d,mn,mx])=>`<div class="bg-white p-2.5 rounded-xl border border-slate-200"><label class="text-[11px] font-bold text-slate-400 block">${l}</label><input data-k="${k}" data-d="${d}" type="number" placeholder="${d}" class="w-full bg-transparent text-lg font-black mb-1"><input data-k="${k}" data-d="${d}" type="range" min="${mn}" max="${mx}" class="w-full accent-indigo-600"></div>`).join('');
 $('shapes').innerHTML=SHAPES.map(s=>`<button data-s="${s[0]}" class="p-4 rounded-2xl text-left transition-all"><div class="font-bold mb-1">${s[1]}</div><div class="text-xs">${s[2]}</div></button>`).join('');
 $('shapes').onclick=e=>{const b=e.target.closest('button');if(b&&S.shapeMode==='manual'){S.shape=b.dataset.s;paintShapes();build()}};
 function paintShapes(){const auto=S.shapeMode==='auto';
@@ -291,14 +293,12 @@ function autoShape(){
   else if(Math.abs(c-hi)<=7&&(c-wa>=18||hi-wa>=20))d='hourglass';
   S.shape=d;return true}
 function setMode(m){S.shapeMode=m;refresh()}
-window.setMode = setMode;
 $('modeSw').onclick=e=>{const m=e.target.dataset.m;if(m)setMode(m)};
 function addRec(){
   if(S.w<=0){toast('請先輸入有效的體重數值喔！');return}
   const n=new Date(),p=x=>String(x).padStart(2,'0');
   S.rec.push({id:Date.now(),time:`${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())}`,weight:+S.w.toFixed(1),bmi:+bmi().toFixed(1)});
   save();toast(`已成功記錄 ${S.w.toFixed(1)} kg！`);if(S.tab==='trend')renderTrend()}
-window.addRec = addRec;
 
 /* ===== 每日步數狀態、跨日 24:00 結算歸零、重啟接續累加 ===== */
 function dateKeysFromObj(d){
@@ -364,10 +364,9 @@ function syncDailyStep(steps, notify=false){
 
 function recordTodaySteps(){
   checkMidnightRollover();
-  const st = Math.max((window.ACT && +window.ACT.steps) || 0, STEP_STATE.todayTotal || 0);
+  const st = Math.max((ACT && +ACT.steps) || 0, STEP_STATE.todayTotal || 0);
   syncDailyStep(st, true);
 }
-window.recordTodaySteps = recordTodaySteps;
 
 // 跨日 24:00 檢查：把前一天最終總步數結算存進每日步數明細，並將今日步數重置為 0
 function checkMidnightRollover() {
@@ -390,15 +389,14 @@ function checkMidnightRollover() {
     };
     saveStepState();
 
-    if (!window.demo) {
-      if(window.ACT) window.ACT.steps = 0;
-      window.stepDirty = true;
-      if(window.drawAct) window.drawAct();
+    if (!demo) {
+      if(ACT) ACT.steps = 0;
+      stepDirty = true;
+      drawAct();
     }
     if (S.tab === 'trend') renderTrend();
   }
 }
-window.checkMidnightRollover = checkMidnightRollover;
 
 // 計算跨重啟與跨日後的今日真實累積步數
 function processHardwareSteps(rawHwSteps) {
@@ -416,7 +414,6 @@ function processHardwareSteps(rawHwSteps) {
   saveStepState();
   return totalToday;
 }
-window.processHardwareSteps = processHardwareSteps;
 
 // 每秒檢查是否跨越 24:00 午夜
 setInterval(checkMidnightRollover, 1000);
@@ -487,7 +484,6 @@ function renderTrend(){
     return `<div class="bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-100 flex justify-between items-center"><span class="text-xs font-bold text-slate-500">${r.date}</span><span class="flex items-center gap-2.5"><span class="text-[11px] text-slate-400">🔥 ${r.kcal||Math.round(r.steps*0.04)} kcal</span><b class="text-sm font-black">${r.steps.toLocaleString()} 步</b>${badge}</span></div>`;
   }).join(''):'';
 }
-window.renderTrend = renderTrend;
 
 // ---------- 3D ----------
 const mount=$('mount');
@@ -607,7 +603,7 @@ function build(){
         limbs.legL.rotation.x = 0; limbs.legR.rotation.x = 0;
     }
   };
-  const nbb=nb;$('bubble').textContent=nbb>=24?'太胖了...跳不動🥵':'太瘦了...沒力氣🤕';$('bubble').classList.toggle('hidden',!bad)}
+  $('bubble').textContent=nb>=24?'太胖了...跳不動🥵':'太瘦了...沒力氣🤕';$('bubble').classList.toggle('hidden',!bad)}
 
 // 旋轉與點擊 (只在畫布上判定)
 let rotY=0,drag=false,moved=false,lx=0;
@@ -624,8 +620,7 @@ startLoop();
 
 resize();drawScreen();build();refresh();
 new ResizeObserver(resize).observe(mount);
-</script>
-<script>
+
 /* ===== 雲端儲存 (Firebase Firestore REST) ===== */
 const CLOUD={projectId:'isjsqw-775a2',apiKey:'AIzaSyDdYaS2vfRxoAh4j1sXXAvrF4R6M5ValXM'};
 const cloudOn=()=>!!(CLOUD.projectId&&CLOUD.apiKey);
@@ -633,7 +628,7 @@ let U=null,lastSnap='',busy=false;
 const docUrl=id=>`https://firestore.googleapis.com/v1/projects/${CLOUD.projectId}/databases/(default)/documents/profiles/${id}?key=${CLOUD.apiKey}`;
 const cmsg=t=>{$('cMsg').textContent=t};
 async function sha(p){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('3dhealth:'+p));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
-window.cloudLogin = async function(){
+async function cloudLogin(){
   const ph=$('phone').value.replace(/\D/g,'');
   if(!cloudOn()){cmsg('雲端功能尚未啟用');return}
   if(!$('agree').checked){cmsg('請先勾選同意資料使用說明');return}
@@ -643,8 +638,8 @@ window.cloudLogin = async function(){
     try{localStorage.setItem('hcloud',JSON.stringify({id,mask}))}catch(e){}}
   catch(e){U=null;cmsg('⚠️ 連線失敗：'+((e&&e.message)||'未知錯誤'))}
   renderCloud()}
-window.cloudOut = function(){U=null;try{localStorage.removeItem('hcloud')}catch(e){}cmsg('已登出');renderCloud()}
-window.cloudDel = async function(){
+function cloudOut(){U=null;try{localStorage.removeItem('hcloud')}catch(e){}cmsg('已登出');renderCloud()}
+async function cloudDel(){
   if(!U||!confirm('確定永久刪除雲端上的你的資料嗎？此動作無法復原。'))return;
   try{const r=await fetch(docUrl(U.id),{method:'DELETE'});if(!r.ok)throw 0;cloudOut();cmsg('✅ 雲端資料已刪除')}
   catch(e){cmsg('⚠️ 刪除失敗，請稍後再試')}}
@@ -680,8 +675,8 @@ function applyData(d){
 
   document.querySelectorAll('[data-k]').forEach(el=>{const v=S[el.dataset.k];el.value=el.type==='range'?(v||el.dataset.d):(v||'')});
   $('gender').value=S.g;$('act').value=String(S.act);
-  paintPal();paintShapes();if(window.refresh)refresh();save();
-  if(S.tab==='trend' && window.renderTrend)renderTrend();if(S.tab==='plan' && window.renderPlan)renderPlan()}
+  paintPal();paintShapes();refresh();save();
+  if(S.tab==='trend')renderTrend()}  // 計畫分頁已由 refresh() 重繪
 function renderCloud(){
   $('cloudIn').classList.toggle('hidden',!!U);$('cloudOn').classList.toggle('hidden',!U);
   if(U)$('cMask').textContent=U.mask;
@@ -700,43 +695,40 @@ async function pull(id,mask,isNew){
   U={id,mask};applyData(d);lastSnap=snap();cmsg('✅ 已載入你的資料')}
 setInterval(()=>{if(U&&!busy){const s=snap();if(s!==lastSnap){lastSnap=s;push()}}},2500);
 (async()=>{try{const s=JSON.parse(localStorage.getItem('hcloud')||'null');if(s&&s.id&&cloudOn()){$('agree').checked=true;cmsg('載入中…');await pull(s.id,String(s.mask||''))}}catch(e){U=null;cmsg('⚠️ 連線失敗')}renderCloud()})();
-</script>
-<script>
+
 /* ===== 穿戴裝置 (活動分頁) ===== */
-window.ACT=null; window.demo=false; window.ACT_ERR='';
 const actUrl=id=>`https://firestore.googleapis.com/v1/projects/${CLOUD.projectId}/databases/(default)/documents/activity/${id.slice(0,16)}?key=${CLOUD.apiKey}`;
-window.drawAct = function(){
-  if(window.checkMidnightRollover) checkMidnightRollover();
+function drawAct(){
+  checkMidnightRollover();
   const a=ACT||{},n=v=>(v!=null&&isFinite(+v)&&+v>0)?+v:null;
-  const st0=n(a.steps)||0,ts=n(a.ts),fl=n(a.fall);
+  const st0=n(a.steps)||0,ts=n(a.ts);
   const stale=!demo&&!!ts&&new Date(ts*1000).toDateString()!==new Date().toDateString();
   const st=stale?0:(st0 || (!demo ? STEP_STATE.todayTotal : 0));
   const pct=Math.min(100,Math.round(st/8000*100));
-  const elSteps = document.getElementById('aSteps'); if(elSteps) elSteps.textContent=st.toLocaleString();
-  const elBar = document.getElementById('aBar'); if(elBar) elBar.style.width=pct+'%';
-  const elPct = document.getElementById('aPct'); if(elPct) elPct.textContent='目標 8,000 步 · 已達成 '+pct+'%';
-  const elKcal = document.getElementById('aKcal'); if(elKcal) elKcal.textContent=Math.round(st*0.04);
+  $('aSteps').textContent=st.toLocaleString();
+  $('aBar').style.width=pct+'%';
+  $('aPct').textContent='目標 8,000 步 · 已達成 '+pct+'%';
+  $('aKcal').textContent=Math.round(st*0.04);
   
   let sub='尚未收到裝置資料';
   if(ACT_ERR)sub='⚠️ '+ACT_ERR;
-  else if(window.bleConnected){
+  else if(bleConnected){
     const m=ts?Math.max(0,Math.round((Date.now()/1000-ts)/60)):0;
     sub=(U&&cloudOn())?(m<1?'藍牙已連線 · 延續今日步數並每 5 秒同步':'藍牙已連線 · '+m+' 分鐘前同步'):'藍牙已連線 · 重啟自動延續今日步數';
   }
   else if(ts){const m=Math.max(0,Math.round((Date.now()/1000-ts)/60));sub=m<1?'剛剛同步':m<60?m+' 分鐘前同步':new Date(ts*1000).toLocaleString()+' 同步'}
-  if(!ACT_ERR&&!window.bleConnected&&ACT&&!ts)sub='已收到裝置資料';
-  const elActSub = document.getElementById('actSub'); if(elActSub) elActSub.textContent=sub;
-  const wifiOn=!!window.bleConnected;
-  const wifiOff=!wifiOn&&(!!window.bleDevice||(!!ts&&!ACT_ERR));
-  const wEl=document.getElementById('wifiOk');
-  if(wEl){
-    if(wifiOn){wEl.className='bg-emerald-50 p-3 rounded-2xl flex items-center gap-2 text-xs font-bold text-emerald-700';wEl.textContent='🔵 藍牙已連接';wEl.style.display='flex'}
-    else if(wifiOff){wEl.className='bg-red-50 p-3 rounded-2xl flex items-center gap-2 text-xs font-bold text-red-600';wEl.textContent=window.bleReconnecting?'🟡 藍牙重新連線中…':'🔴 藍牙已斷線';wEl.style.display='flex'}
-    else wEl.style.display='none';
-  }
-  const elDemo = document.getElementById('aDemo'); if(elDemo) elDemo.textContent=demo?'改看真實資料':'看模擬資料'}
-window.fetchAct = async function(){
-  if(window.checkMidnightRollover) checkMidnightRollover();
+  if(!ACT_ERR&&!bleConnected&&ACT&&!ts)sub='已收到裝置資料';
+  $('actSub').textContent=sub;
+  const wifiOn=!!bleConnected;
+  const wifiOff=!wifiOn&&(!!bleDevice||(!!ts&&!ACT_ERR));
+  const wEl=$('wifiOk');
+  if(wifiOn){wEl.className='bg-emerald-50 p-3 rounded-2xl flex items-center gap-2 text-xs font-bold text-emerald-700';wEl.textContent='🔵 藍牙已連接';wEl.style.display='flex'}
+  else if(wifiOff){wEl.className='bg-red-50 p-3 rounded-2xl flex items-center gap-2 text-xs font-bold text-red-600';wEl.textContent=bleReconnecting?'🟡 藍牙重新連線中…':'🔴 藍牙已斷線';wEl.style.display='flex'}
+  else wEl.style.display='none';
+  $('aDemo').textContent=demo?'改看真實資料':'看模擬資料'}
+async function fetchAct(){
+  if(bleConnected)return; // 藍牙連線中以裝置資料為準，不讀雲端
+  checkMidnightRollover();
   if(demo)return;
   if(!U){ACT_ERR='請先在「資料」分頁登入雲端';drawAct();return}
   if(!cloudOn())return;
@@ -761,8 +753,8 @@ window.fetchAct = async function(){
     else ACT_ERR='讀取失敗 HTTP '+r.status+(r.status===403?'（Firestore 規則未開放 activity 集合）':'');
   }catch(e){ACT_ERR='網路錯誤，無法連到雲端'}
   drawAct()}
-window.renderAct = function(){if(!demo)fetchAct();drawAct()}
-window.demoAct = function(){
+function renderAct(){if(!demo)fetchAct();drawAct()}
+function demoAct(){
   if(demo){demo=false;ACT=null;renderAct();return}
   demo=true;
   ACT={steps:5000+Math.round(Math.random()*3000),fall:0,ts:0};drawAct()}
@@ -776,14 +768,9 @@ if (STEP_STATE.todayTotal > 0) {
 /* ===== 藍牙 (Web Bluetooth API) 整合與每 5 秒自動上傳 ===== */
 const serviceUuid = "19b10000-e8f2-537e-4f6c-d104768a1214";
 const stepCharUuid = "19b10001-e8f2-537e-4f6c-d104768a1214";
-window.bleDevice = null;
-window.walkTimer = null;
-window.bleConnected = false;
-window.stepDirty = false;
-window.stepUploadBusy = false;
 
 let audioCtx = null;
-window.initAudio = function() {
+function initAudio() {
   if (!audioCtx) {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   }
@@ -810,31 +797,31 @@ function playFallAlarm() {
   playBeep(now + 0.6);
 }
 
-window.triggerFallAlert = function() {
+function triggerFallAlert() {
   const el = document.getElementById('fallAlert');
   if(el) el.classList.remove('hidden');
   playFallAlarm(); 
   ACT = ACT || { steps: 0, fall: 0, ts: 0 };
   ACT.fall = (ACT.fall || 0) + 1;
   ACT.ts = Math.floor(Date.now() / 1000);
-  window.stepDirty = true;
+  stepDirty = true;
   drawAct();
 }
 
-window.dismissFallAlert = function() {
+function dismissFallAlert() {
   const el = document.getElementById('fallAlert');
   if(el) el.classList.add('hidden');
 }
 
 async function uploadStepsEvery5Sec() {
-  if(window.checkMidnightRollover) checkMidnightRollover();
-  if (!window.bleConnected || !window.stepDirty || window.stepUploadBusy || !ACT) return;
-  window.stepUploadBusy = true;
-  window.stepDirty = false;
+  checkMidnightRollover();
+  if (!bleConnected || !stepDirty || stepUploadBusy || !ACT) return;
+  stepUploadBusy = true;
+  stepDirty = false;
   try {
     const nowTs = Math.floor(Date.now() / 1000);
     ACT.ts = nowTs;
-    if(window.syncDailyStep) syncDailyStep(ACT.steps, false);
+    syncDailyStep(ACT.steps, false);
     if (U && cloudOn()) {
       await fetch(actUrl(U.id), {
         method: 'PATCH',
@@ -854,9 +841,9 @@ async function uploadStepsEvery5Sec() {
     }
     drawAct();
   } catch (e) {
-    window.stepDirty = true;
+    stepDirty = true;
   }
-  window.stepUploadBusy = false;
+  stepUploadBusy = false;
 }
 
 setInterval(uploadStepsEvery5Sec, 5000);
@@ -866,11 +853,9 @@ const BLE_CLS_IDLE = 'bg-indigo-600 text-white text-xs font-bold px-3 py-2 round
 const BLE_CLS_ON   = 'bg-emerald-500 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-sm';
 const BLE_CLS_WAIT = 'bg-amber-500 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-sm';
 const BLE_RETRY_MS = [1000, 2000, 4000, 8000, 15000, 30000]; // 重連退避間隔，用完即放棄
-window.bleManualStop = false;   // 使用者主動中斷時不自動重連
-window.bleReconnecting = false;
 let bleRetryTimer = null, bleRetryCount = 0;
 
-function bleSetBtn(text, cls){ if(btnConnect){ btnConnect.innerText = text; btnConnect.className = cls; } }
+function bleSetBtn(text, cls){ btnConnect.innerText = text; btnConnect.className = cls; }
 
 // 取得 GATT 服務並開啟通知（首次連線與重連共用）
 async function bleSetup(device){
@@ -879,8 +864,8 @@ async function bleSetup(device){
   const stepCharacteristic = await service.getCharacteristic(stepCharUuid);
   await stepCharacteristic.startNotifications();
   stepCharacteristic.addEventListener('characteristicvaluechanged', handleStepUpdate);
-  window.bleConnected = true;
-  window.bleReconnecting = false;
+  bleConnected = true;
+  bleReconnecting = false;
   bleRetryCount = 0;
   demo = false;
   // 連上後主動讀一次目前步數，不必等韌體下一次 5 秒通知（失敗不影響連線）
@@ -888,8 +873,8 @@ async function bleSetup(device){
 }
 
 function bleOnDisconnected(){
-  window.bleConnected = false;
-  if (window.bleManualStop) {
+  bleConnected = false;
+  if (bleManualStop) {
     bleSetBtn('+ 連接藍牙', BLE_CLS_IDLE);
     drawAct();
     return;
@@ -900,24 +885,24 @@ function bleOnDisconnected(){
 
 function bleScheduleReconnect(){
   clearTimeout(bleRetryTimer);
-  if (!window.bleDevice || window.bleManualStop || window.bleConnected) return;
+  if (!bleDevice || bleManualStop || bleConnected) return;
   if (bleRetryCount >= BLE_RETRY_MS.length) {
-    window.bleReconnecting = false;
+    bleReconnecting = false;
     bleSetBtn('+ 連接藍牙', BLE_CLS_IDLE);
     toast('⚠️ 無法自動重連，請按「連接藍牙」手動連線');
     drawAct();
     return;
   }
-  window.bleReconnecting = true;
+  bleReconnecting = true;
   bleSetBtn('🟡 重連中…', BLE_CLS_WAIT);
   bleRetryTimer = setTimeout(bleTryReconnect, BLE_RETRY_MS[bleRetryCount++]);
   drawAct();
 }
 
 async function bleTryReconnect(){
-  if (!window.bleDevice || window.bleManualStop || window.bleConnected) return;
+  if (!bleDevice || bleManualStop || bleConnected) return;
   try {
-    await bleSetup(window.bleDevice);
+    await bleSetup(bleDevice);
     bleSetBtn('🟢 已連線', BLE_CLS_ON);
     toast('🟢 已自動重新連線');
     drawAct();
@@ -929,56 +914,54 @@ async function bleTryReconnect(){
 // 回到前景時，若中途掉線（或重連次數已用完）就重新嘗試
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) return;
-  if (window.bleDevice && !window.bleConnected && !window.bleManualStop && !window.bleReconnecting) {
+  if (bleDevice && !bleConnected && !bleManualStop && !bleReconnecting) {
     bleRetryCount = 0;
     bleScheduleReconnect();
   }
 });
 
-if(btnConnect) {
-  btnConnect.addEventListener('click', async () => {
-    initAudio();
+btnConnect.addEventListener('click', async () => {
+  initAudio();
 
-    // 已連線或重連中：再按一次 = 主動中斷
-    if (window.bleConnected || window.bleReconnecting) {
-      window.bleManualStop = true;
-      clearTimeout(bleRetryTimer);
-      window.bleReconnecting = false;
-      if (window.bleDevice && window.bleDevice.gatt.connected) window.bleDevice.gatt.disconnect(); // 會觸發 bleOnDisconnected
-      else { bleSetBtn('+ 連接藍牙', BLE_CLS_IDLE); drawAct(); }
-      toast('已中斷藍牙連線');
-      return;
-    }
+  // 已連線或重連中：再按一次 = 主動中斷
+  if (bleConnected || bleReconnecting) {
+    bleManualStop = true;
+    clearTimeout(bleRetryTimer);
+    bleReconnecting = false;
+    if (bleDevice && bleDevice.gatt.connected) bleDevice.gatt.disconnect(); // 會觸發 bleOnDisconnected
+    else { bleSetBtn('+ 連接藍牙', BLE_CLS_IDLE); drawAct(); }
+    toast('已中斷藍牙連線');
+    return;
+  }
 
-    if (!navigator.bluetooth) {
-      toast('⚠️ iPhone 請改用 Bluefy 瀏覽器開啟網頁！');
-      return;
-    }
-    try {
-      window.bleManualStop = false;
-      bleSetBtn('搜尋中...', BLE_CLS_IDLE);
-      const device = await navigator.bluetooth.requestDevice({
-        filters: [{ services: [serviceUuid] }],   // 只列出有廣播此服務的裝置
-        optionalServices: [serviceUuid]
-      });
+  if (!navigator.bluetooth) {
+    toast('⚠️ iPhone 請改用 Bluefy 瀏覽器開啟網頁！');
+    return;
+  }
+  try {
+    bleManualStop = false;
+    bleSetBtn('搜尋中...', BLE_CLS_IDLE);
+    const device = await navigator.bluetooth.requestDevice({
+      filters: [{ services: [serviceUuid] }],   // 只列出有廣播此服務的裝置
+      optionalServices: [serviceUuid]
+    });
 
-      if (window.bleDevice) window.bleDevice.removeEventListener('gattserverdisconnected', bleOnDisconnected);
-      window.bleDevice = device;
-      device.addEventListener('gattserverdisconnected', bleOnDisconnected);
+    if (bleDevice) bleDevice.removeEventListener('gattserverdisconnected', bleOnDisconnected);
+    bleDevice = device;
+    device.addEventListener('gattserverdisconnected', bleOnDisconnected);
 
-      bleSetBtn('連線中...', BLE_CLS_IDLE);
-      await bleSetup(device);
+    bleSetBtn('連線中...', BLE_CLS_IDLE);
+    await bleSetup(device);
 
-      bleSetBtn('🟢 已連線', BLE_CLS_ON);
-      toast('藍牙連接成功！（延續今日步數，每 5 秒同步）');
-      drawAct();
-    } catch (error) {
-      console.error('藍牙連接失敗:', error);
-      bleSetBtn('+ 連接藍牙', BLE_CLS_IDLE);
-      toast(error.name === 'NotFoundError' ? '找不到裝置，或已取消選擇' : '失敗原因：' + (error.message || '未知錯誤'));
-    }
-  });
-}
+    bleSetBtn('🟢 已連線', BLE_CLS_ON);
+    toast('藍牙連接成功！（延續今日步數，每 5 秒同步）');
+    drawAct();
+  } catch (error) {
+    console.error('藍牙連接失敗:', error);
+    bleSetBtn('+ 連接藍牙', BLE_CLS_IDLE);
+    toast(error.name === 'NotFoundError' ? '找不到裝置，或已取消選擇' : '失敗原因：' + (error.message || '未知錯誤'));
+  }
+});
 
 function handleStepUpdate(event) {
   handleStepValue(event.target.value, false);
@@ -990,35 +973,30 @@ function handleStepValue(value, fromRead) {
   const rawString = decoder.decode(value).trim();
   
   if (rawString === "FALL") {
-    if (!fromRead && window.triggerFallAlert) triggerFallAlert();
+    if (!fromRead) triggerFallAlert();
     return;
   }
 
   const rawStepCount = parseInt(rawString, 10);
   if (isNaN(rawStepCount)) return;
   
-  const totalTodaySteps = window.processHardwareSteps ? processHardwareSteps(rawStepCount) : rawStepCount;
+  const totalTodaySteps = processHardwareSteps(rawStepCount);
   
   ACT = ACT || { steps: 0, fall: 0, ts: 0 };
   if (ACT.steps !== totalTodaySteps) {
     ACT.steps = totalTodaySteps;
-    window.stepDirty = true;
-    if(window.syncDailyStep) syncDailyStep(totalTodaySteps, false);
+    stepDirty = true;
+    syncDailyStep(totalTodaySteps, false);
   }
   
   drawAct();
   if (fromRead) return;
   
   S.walk = true; // 不需重建公仔，upd() 每幀會依 S.walk 切換走路動畫
-  if (window.walkTimer) clearTimeout(window.walkTimer);
-  window.walkTimer = setTimeout(() => { S.walk = false; }, 5500);
+  if (walkTimer) clearTimeout(walkTimer);
+  walkTimer = setTimeout(() => { S.walk = false; }, 5500);
 }
 
-const originalFetchAct = fetchAct;
-window.fetchAct = async function() {
-    if(window.bleConnected) return;
-    return originalFetchAct();
-};
 </script>
 </body>
 </html>
