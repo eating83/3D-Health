@@ -199,9 +199,10 @@ input[type=number],select{outline:none}
 </div>
 
 <script>
-// (1) 防報錯：如果網頁在非藍牙支援環境（例如電腦某些舊版瀏覽器、沒有藍牙硬體）
-// 或被安全擋下而報錯，我們依然確保其他 UI 能正常初始化
-try {
+window.onerror = function(message, source, lineno, colno, error) {
+    console.error("Global Error: ", message, " at ", source, ":", lineno);
+};
+
 const $=id=>document.getElementById(id);
 const COLORS=['#4f46e5','#ec4899','#10b981','#f97316','#1f2937'];
 const SLOGANS=["汗水是脂肪哭泣的眼淚，繼續加油！","今天的努力，是為了明天更美的自己。","別放棄，你的潛力比你想像的還要大！","好身材不是天生，是你的自律給的。","每一次運動，都在重新雕塑你的未來。","管住嘴，邁開腿，完美體態在向你招手！","慢慢來比較快，堅持才是最後的贏家。","將健康變成習慣，而不是短暫的目標。","就算只進步一點點，也比站在原地好。","現在放棄的話，比賽就結束了喔！"];
@@ -215,16 +216,15 @@ const DIET=[
 '早餐：饅頭夾蛋＋無糖豆漿\n午餐：自助餐：瘦肉片炒青椒、燙青菜、蒸南瓜、白飯\n晚餐：絲瓜蛤蜊湯、炒高麗菜、豆干',
 '早餐：地瓜＋水煮蛋＋無糖豆漿\n午餐：自助餐：蒸魚、炒木耳、燙青菜、白飯\n晚餐：雞肉絲湯麵(少油)、燙青菜、滷蛋'];
 
-// ---- 更換菜色：把原本 7 天拆成早/午/晚菜色池，再加幾道新菜，用種子洗牌 ----
 const DP=[[],[],[]];
 DIET.forEach(f=>f.split('\n').forEach((l,i)=>DP[i].push(l)));
 DP[0].push('早餐：燕麥片＋無糖豆漿＋香蕉','早餐：全麥饅頭＋水煮蛋＋無糖豆漿','早餐：無糖優格＋水果＋堅果');
 DP[1].push('午餐：自助餐：滷雞胸肉、燙青菜、炒豆芽、糙米飯','午餐：自助餐：蒸魚、燙地瓜葉、炒時蔬、白飯','午餐：自助餐：瘦肉片炒青椒、炒木耳、燙青菜、糙米飯');
 DP[2].push('晚餐：蒜炒花椰菜、蒸蛋、板豆腐','晚餐：蔬菜豆腐湯、涼拌小黃瓜、水煮蛋','晚餐：絲瓜蛤蜊湯、燙青菜、滷豆腐');
-const wkId=()=>Math.floor((Math.floor(Date.now()/864e5)+3)/7); // 以週一為一週的開始
+const wkId=()=>Math.floor((Math.floor(Date.now()/864e5)+3)/7);
 let MS=null;
 try{const m=JSON.parse(localStorage.getItem('hmeal')||'null');if(m&&m.w===wkId()&&isFinite(m.s))MS=m.s}catch(e){}
-const mealSeed=()=>MS!==null?MS:wkId()*7919+13; // 沒按過按鈕：每週自動換一組
+const mealSeed=()=>MS!==null?MS:wkId()*7919+13;
 function rnd(seed){let s=(seed>>>0)%2147483647||1;return()=>(s=s*16807%2147483647)/2147483647}
 function weekDiet(){
   const sd=mealSeed();
@@ -250,7 +250,6 @@ try{const sr=JSON.parse(localStorage.getItem('hsteprec')||'[]');if(Array.isArray
 window.save = function(){try{localStorage.setItem('hrec',JSON.stringify(S.rec));localStorage.setItem('hsteprec',JSON.stringify(S.stepRec))}catch(e){}}
 window.toast = function(t){const e=$('toast');e.textContent=t;e.classList.remove('hidden');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.add('hidden'),2500)}
 
-// ---------- UI 組裝 ----------
 $('pal').innerHTML=COLORS.map(c=>`<button data-c="${c}" class="w-6 h-6 rounded-full border-2 border-transparent" style="background:${c}"></button>`).join('');
 $('pal').onclick=e=>{const c=e.target.dataset.c;if(c){S.color=c;paintPal();build()}};
 function paintPal(){document.querySelectorAll('#pal button').forEach(b=>{b.style.borderColor=b.dataset.c===S.color?'#1e293b':'transparent';b.style.transform=b.dataset.c===S.color?'scale(1.1)':''})}
@@ -273,10 +272,9 @@ $('nav').onclick=e=>{const b=e.target.closest('button');if(b)setTab(b.dataset.t)
 function setTab(t){S.tab=t;document.querySelectorAll('.tab').forEach(e=>e.classList.toggle('on',e.id==='t-'+t));
   document.querySelectorAll('#nav button').forEach(b=>{const on=b.dataset.t===t;b.className='flex flex-col items-center gap-0.5 w-16 '+(on?'text-indigo-600':'text-slate-400');b.style.opacity=on?1:.7});
   if(t==='plan'){$('slogan').textContent=SLOGANS[Math.random()*SLOGANS.length|0];renderPlan()}
-  if(t==='trend')renderTrend();if(t==='act')renderAct()}
+  if(t==='trend')renderTrend();if(t==='act') { if(window.renderAct) window.renderAct(); } }
 setTab('data');
 
-// ---------- 輸入處理 ----------
 document.querySelectorAll('[data-k]').forEach(el=>el.addEventListener('input',()=>{
   S[el.dataset.k]=parseFloat(el.value)||0;
   document.querySelectorAll(`[data-k="${el.dataset.k}"]`).forEach(o=>{if(o!==el)o.value=o.type==='range'?(S[el.dataset.k]||o.dataset.d):el.value});
@@ -302,7 +300,6 @@ window.addRec = function(){
   S.rec.push({id:Date.now(),time:`${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())}`,weight:+S.w.toFixed(1),bmi:+bmi().toFixed(1)});
   save();toast(`已成功記錄 ${S.w.toFixed(1)} kg！`);if(S.tab==='trend')renderTrend()}
 
-/* ===== 每日步數狀態、跨日 24:00 結算歸零、重啟接續累加 ===== */
 function dateKeysFromObj(d){
   const p=x=>String(x).padStart(2,'0');
   return {key:`${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`,date:`${p(d.getMonth()+1)}/${p(d.getDate())}`};
@@ -311,12 +308,11 @@ function todayKeys(){
   return dateKeysFromObj(new Date());
 }
 
-// 紀錄當日累積狀態（即使裝置重啟從 0 開始算，網頁也會自動把前次累積的基數加上去）
 let STEP_STATE = {
   dateKey: todayKeys().key,
-  baseSteps: 0,      // 今日在裝置重啟前已累積的步數
-  lastRawHw: null,   // 裝置上一次傳來的原始步數（用來偵測重啟歸零）
-  todayTotal: 0      // 今日實際總步數 = baseSteps + rawHw
+  baseSteps: 0,
+  lastRawHw: null,
+  todayTotal: 0
 };
 
 try {
@@ -352,7 +348,7 @@ function upsertStepRecord(key, date, steps) {
 }
 
 function syncDailyStep(steps, notify=false){
-  checkMidnightRollover();
+  if(window.checkMidnightRollover) checkMidnightRollover();
   const st = Math.max(0, Math.round(+steps || 0));
   if(st <= 0){ if(notify) toast('目前今日步數為 0，請先走幾步再記錄喔！'); return; }
   const {key, date} = todayKeys();
@@ -363,15 +359,14 @@ function syncDailyStep(steps, notify=false){
   if(notify) toast(`已記錄今日 ${st.toLocaleString()} 步！`);
   if(S.tab === 'trend') renderTrend();
 }
+window.syncDailyStep = syncDailyStep;
 
 window.recordTodaySteps = function(){
-  checkMidnightRollover();
-  // 注意，這裡需要存取 ACT 變數，等下宣告
+  if(window.checkMidnightRollover) checkMidnightRollover();
   const st = Math.max((window.ACT && +window.ACT.steps) || 0, STEP_STATE.todayTotal || 0);
   syncDailyStep(st, true);
 }
 
-// 跨日 24:00 檢查：把前一天最終總步數結算存進每日步數明細，並將今日步數重置為 0
 function checkMidnightRollover() {
   const { key: curKey } = todayKeys();
   if (STEP_STATE.dateKey !== curKey) {
@@ -382,7 +377,6 @@ function checkMidnightRollover() {
       const prevDateStr = parts.length === 3 ? `${parts[1]}/${parts[2]}` : prevKey.slice(5).replace('-', '/');
       upsertStepRecord(prevKey, prevDateStr, prevTotal);
     }
-    // 如果硬體此刻已經有步數，把當前硬體數值設為今日新基準偏移，讓今日從 0 重新起算
     const currentHw = (STEP_STATE.lastRawHw != null) ? STEP_STATE.lastRawHw : 0;
     STEP_STATE = {
       dateKey: curKey,
@@ -402,12 +396,10 @@ function checkMidnightRollover() {
 }
 window.checkMidnightRollover = checkMidnightRollover;
 
-// 計算跨重啟與跨日後的今日真實累積步數
 function processHardwareSteps(rawHwSteps) {
   checkMidnightRollover();
   const raw = Math.max(0, Math.round(+rawHwSteps || 0));
 
-  // 偵測裝置是否重啟（新傳來的硬體步數小於上一次的硬體步數，代表板子斷電/按了 RESET 從 0 重算）
   if (STEP_STATE.lastRawHw !== null && raw < STEP_STATE.lastRawHw) {
     STEP_STATE.baseSteps = STEP_STATE.todayTotal;
   }
@@ -420,7 +412,6 @@ function processHardwareSteps(rawHwSteps) {
 }
 window.processHardwareSteps = processHardwareSteps;
 
-// 每秒檢查是否跨越 24:00 午夜
 setInterval(checkMidnightRollover, 1000);
 
 function refresh(){if(S.shapeMode==='auto')autoShape();paintShapes();
@@ -433,7 +424,11 @@ function refresh(){if(S.shapeMode==='auto')autoShape();paintShapes();
   if(S.wa>0&&S.hi>0){const r=S.wa/S.hi,hi=(S.g==='female'&&r>0.85)||(S.g==='male'&&r>0.9);
     w.classList.remove('hidden');w.innerHTML=`<span class="font-bold text-slate-600">腰臀比 (WHR)：<strong class="text-indigo-600">${r.toFixed(2)}</strong></span><span class="font-bold px-2 py-0.5 rounded-full text-[10px] ${hi?'bg-orange-100 text-orange-700':'bg-emerald-100 text-emerald-700'}">${hi?'⚠️ 腹部脂肪偏高':'✅ 理想比例'}</span>`}
   else w.classList.add('hidden');
-  drawScreen();queueBuild();if(S.tab==='plan')renderPlan()}
+  if(window.drawScreen) drawScreen(); 
+  if(window.queueBuild) queueBuild(); 
+  if(S.tab==='plan')renderPlan()
+}
+window.refresh = refresh;
 
 function menu(t){
   if(S.diet==='vegetarian')return t.replace(/滷雞腿\(去皮\)|滷雞胸肉|雞肉絲|瘦肉片/g,'豆干').replace(/清蒸魚|烤鯖魚|蒸魚/g,'烤麩').replace(/蛤蜊/g,'菇');
@@ -450,6 +445,8 @@ function renderPlan(){
   $('diet').innerHTML=weekDiet().map((f,i)=>`<div class="flex gap-3 ${i<6?'border-b border-orange-100 pb-3':''}"><div class="font-black text-orange-400 w-8 shrink-0">W${DAYS[i]}</div><div class="text-sm font-bold text-slate-700 whitespace-pre-line">${menu(f)}</div></div>`).join('');
   const loss=b>23.5;$('wkTag').textContent=loss?'🔥 減脂菜單':'✨ 體態維持';
   $('work').innerHTML=(loss?WORK[S.shape]:WORK.maintain).map((x,i)=>`<div class="flex gap-3 ${i<6?'border-b border-blue-100 pb-3':''}"><div class="font-black text-blue-400 w-8 shrink-0">W${DAYS[i]}</div><div class="text-sm font-bold text-slate-700">${x}</div></div>`).join('')}
+window.renderPlan = renderPlan;
+
 function renderTrend(){
   const R=S.rec;
   if(R.length<2)$('chart').innerHTML=`<div class="h-40 flex flex-col items-center justify-center text-center"><div class="text-2xl mb-2">📈</div><div class="text-sm font-bold text-slate-700 mb-1">目前 ${R.length} 筆，還差 ${2-R.length} 筆即可繪製折線圖</div><div class="text-xs text-slate-400">調整體重後點「記錄體重」新增點位</div></div>`;
@@ -507,7 +504,7 @@ const screenMat=new THREE.MeshBasicMaterial();
 const scr=new THREE.Mesh(new THREE.PlaneGeometry(1.1,.55),screenMat);scr.position.set(0,.082,.72);scr.rotation.x=-Math.PI/2;base.add(scr);
 main.add(base);
 const avatar=new THREE.Group();main.add(avatar);
-function drawScreen(){
+window.drawScreen = function(){
   const cv=document.createElement('canvas');cv.width=256;cv.height=128;const x=cv.getContext('2d');
   x.fillStyle='#0f172a';x.fillRect(0,0,256,128);x.strokeStyle='#334155';x.lineWidth=6;x.strokeRect(3,3,250,122);
   x.fillStyle='#4ade80';x.font='900 54px sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText(S.w>0?S.w.toFixed(1):'--.-',110,68);
@@ -518,8 +515,9 @@ addEventListener('resize',resize);
 
 let upd=()=>{};
 function disposeGroup(g){g.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material)o.material.dispose()});while(g.children.length)g.remove(g.children[0])}
-let bq=0;function queueBuild(){if(!bq)bq=requestAnimationFrame(()=>{bq=0;build()})}
-function build(){
+let bq=0;
+window.queueBuild = function(){if(!bq)bq=requestAnimationFrame(()=>{bq=0;build()})}
+window.build = function(){
   disposeGroup(avatar);
   const auto=S.shapeMode==='auto',nb=bmi(),sf=nb>0?Math.max(-.15,(nb-22)*.03):0,sh=S.shape,cl=n=>Math.min(1.7,Math.max(.7,n));
   const sC=cl(1+(sh==='apple'||sh==='hourglass'?sf*.8:sf*.4)+(auto&&S.c>0?(S.c-88)*.006:0));
@@ -619,7 +617,10 @@ cv.addEventListener('pointermove',e=>{if(!drag)return;const d=e.clientX-lx;if(Ma
 cv.addEventListener('pointerup',()=>{drag=false;if(!moved&&!S.anim&&!S.walk){S.anim=true;build();setTimeout(()=>{S.anim=false;build()},2000)}});
 (function loop(){requestAnimationFrame(loop);main.rotation.y+=(rotY-main.rotation.y)*.1;upd();ren.render(scene,cam)})();
 
-resize();drawScreen();build();refresh();
+resize();
+if(window.drawScreen) drawScreen();
+if(window.build) build();
+if(window.refresh) refresh();
 new ResizeObserver(resize).observe(mount);
 } catch (error) {
   console.error("Initialization Error:", error);
