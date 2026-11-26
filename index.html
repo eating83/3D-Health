@@ -149,7 +149,7 @@ input[type=number],select{outline:none}
             <button id="aDemo" onclick="demoAct()" class="bg-slate-100 text-slate-600 text-xs font-bold px-2.5 py-2 rounded-xl">看模擬資料</button>
           </div>
         </div>
-        <div id="wifiOk" style="display:none" class="bg-emerald-50 p-3 rounded-2xl items-center gap-2 text-xs font-bold text-emerald-700">📶 WiFi 已連線</div>
+        <div id="wifiOk" style="display:none" class="bg-emerald-50 p-3 rounded-2xl items-center gap-2 text-xs font-bold text-emerald-700">🔵 藍牙已連接</div>
         
         <div class="bg-gradient-to-br from-indigo-600 to-purple-600 text-white p-4 rounded-2xl">
           <div class="flex justify-between items-start">
@@ -615,7 +615,12 @@ const cv=ren.domElement;
 cv.addEventListener('pointerdown',e=>{drag=true;moved=false;lx=e.clientX;cv.setPointerCapture(e.pointerId)});
 cv.addEventListener('pointermove',e=>{if(!drag)return;const d=e.clientX-lx;if(Math.abs(d)>2)moved=true;rotY+=d*.012;lx=e.clientX});
 cv.addEventListener('pointerup',()=>{drag=false;if(!moved&&!S.anim&&!S.walk){S.anim=true;build();setTimeout(()=>{S.anim=false;build()},2000)}});
-(function loop(){requestAnimationFrame(loop);main.rotation.y+=(rotY-main.rotation.y)*.1;upd();ren.render(scene,cam)})();
+let rafId=0;
+function loop(){rafId=requestAnimationFrame(loop);main.rotation.y+=(rotY-main.rotation.y)*.1;upd();ren.render(scene,cam)}
+function startLoop(){if(!rafId)loop()}
+function stopLoop(){cancelAnimationFrame(rafId);rafId=0}
+document.addEventListener('visibilitychange',()=>document.hidden?stopLoop():startLoop());
+startLoop();
 
 resize();drawScreen();build();refresh();
 new ResizeObserver(resize).observe(mount);
@@ -721,12 +726,12 @@ window.drawAct = function(){
   else if(ts){const m=Math.max(0,Math.round((Date.now()/1000-ts)/60));sub=m<1?'剛剛同步':m<60?m+' 分鐘前同步':new Date(ts*1000).toLocaleString()+' 同步'}
   if(!ACT_ERR&&!window.bleConnected&&ACT&&!ts)sub='已收到裝置資料';
   const elActSub = document.getElementById('actSub'); if(elActSub) elActSub.textContent=sub;
-  const wifiOn=!ACT_ERR&&!!ts&&(Date.now()/1000-ts)<150;
-  const wifiOff=!wifiOn&&((!!ts&&!ACT_ERR)||(ACT_ERR.indexOf('雲端還沒有')===0));
+  const wifiOn=!!window.bleConnected;
+  const wifiOff=!wifiOn&&(!!window.bleDevice||(!!ts&&!ACT_ERR));
   const wEl=document.getElementById('wifiOk');
   if(wEl){
-    if(wifiOn){wEl.className='bg-emerald-50 p-3 rounded-2xl flex items-center gap-2 text-xs font-bold text-emerald-700';wEl.textContent='📶 WiFi 已連線';wEl.style.display='flex'}
-    else if(wifiOff){wEl.className='bg-red-50 p-3 rounded-2xl flex items-center gap-2 text-xs font-bold text-red-600';wEl.textContent='📵 WiFi 已斷線';wEl.style.display='flex'}
+    if(wifiOn){wEl.className='bg-emerald-50 p-3 rounded-2xl flex items-center gap-2 text-xs font-bold text-emerald-700';wEl.textContent='🔵 藍牙已連接';wEl.style.display='flex'}
+    else if(wifiOff){wEl.className='bg-red-50 p-3 rounded-2xl flex items-center gap-2 text-xs font-bold text-red-600';wEl.textContent=window.bleReconnecting?'🟡 藍牙重新連線中…':'🔴 藍牙已斷線';wEl.style.display='flex'}
     else wEl.style.display='none';
   }
   const elDemo = document.getElementById('aDemo'); if(elDemo) elDemo.textContent=demo?'改看真實資料':'看模擬資料'}
@@ -857,47 +862,118 @@ async function uploadStepsEvery5Sec() {
 setInterval(uploadStepsEvery5Sec, 5000);
 
 const btnConnect = document.getElementById('ble-connect-btn');
+const BLE_CLS_IDLE = 'bg-indigo-600 text-white text-xs font-bold px-3 py-2 rounded-xl active:scale-95';
+const BLE_CLS_ON   = 'bg-emerald-500 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-sm';
+const BLE_CLS_WAIT = 'bg-amber-500 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-sm';
+const BLE_RETRY_MS = [1000, 2000, 4000, 8000, 15000, 30000]; // 重連退避間隔，用完即放棄
+window.bleManualStop = false;   // 使用者主動中斷時不自動重連
+window.bleReconnecting = false;
+let bleRetryTimer = null, bleRetryCount = 0;
+
+function bleSetBtn(text, cls){ if(btnConnect){ btnConnect.innerText = text; btnConnect.className = cls; } }
+
+// 取得 GATT 服務並開啟通知（首次連線與重連共用）
+async function bleSetup(device){
+  const server = await device.gatt.connect();
+  const service = await server.getPrimaryService(serviceUuid);
+  const stepCharacteristic = await service.getCharacteristic(stepCharUuid);
+  await stepCharacteristic.startNotifications();
+  stepCharacteristic.addEventListener('characteristicvaluechanged', handleStepUpdate);
+  window.bleConnected = true;
+  window.bleReconnecting = false;
+  bleRetryCount = 0;
+  demo = false;
+}
+
+function bleOnDisconnected(){
+  window.bleConnected = false;
+  if (window.bleManualStop) {
+    bleSetBtn('+ 連接藍牙', BLE_CLS_IDLE);
+    drawAct();
+    return;
+  }
+  toast('🔴 裝置已斷線，嘗試重新連線…（今日步數已保留）');
+  bleScheduleReconnect();
+}
+
+function bleScheduleReconnect(){
+  clearTimeout(bleRetryTimer);
+  if (!window.bleDevice || window.bleManualStop || window.bleConnected) return;
+  if (bleRetryCount >= BLE_RETRY_MS.length) {
+    window.bleReconnecting = false;
+    bleSetBtn('+ 連接藍牙', BLE_CLS_IDLE);
+    toast('⚠️ 無法自動重連，請按「連接藍牙」手動連線');
+    drawAct();
+    return;
+  }
+  window.bleReconnecting = true;
+  bleSetBtn('🟡 重連中…', BLE_CLS_WAIT);
+  bleRetryTimer = setTimeout(bleTryReconnect, BLE_RETRY_MS[bleRetryCount++]);
+  drawAct();
+}
+
+async function bleTryReconnect(){
+  if (!window.bleDevice || window.bleManualStop || window.bleConnected) return;
+  try {
+    await bleSetup(window.bleDevice);
+    bleSetBtn('🟢 已連線', BLE_CLS_ON);
+    toast('🟢 已自動重新連線');
+    drawAct();
+  } catch (e) {
+    bleScheduleReconnect();
+  }
+}
+
+// 回到前景時，若中途掉線（或重連次數已用完）就重新嘗試
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return;
+  if (window.bleDevice && !window.bleConnected && !window.bleManualStop && !window.bleReconnecting) {
+    bleRetryCount = 0;
+    bleScheduleReconnect();
+  }
+});
+
 if(btnConnect) {
   btnConnect.addEventListener('click', async () => {
-    initAudio(); 
-    if (!navigator.bluetooth) {
-      if(window.toast) toast('⚠️ iPhone 請改用 Bluefy 瀏覽器開啟網頁！');
+    initAudio();
+
+    // 已連線或重連中：再按一次 = 主動中斷
+    if (window.bleConnected || window.bleReconnecting) {
+      window.bleManualStop = true;
+      clearTimeout(bleRetryTimer);
+      window.bleReconnecting = false;
+      if (window.bleDevice && window.bleDevice.gatt.connected) window.bleDevice.gatt.disconnect(); // 會觸發 bleOnDisconnected
+      else { bleSetBtn('+ 連接藍牙', BLE_CLS_IDLE); drawAct(); }
+      toast('已中斷藍牙連線');
       return;
     }
-    const btn = document.getElementById('ble-connect-btn');
+
+    if (!navigator.bluetooth) {
+      toast('⚠️ iPhone 請改用 Bluefy 瀏覽器開啟網頁！');
+      return;
+    }
     try {
-      btn.innerText = '搜尋中...';
-      window.bleDevice = await navigator.bluetooth.requestDevice({
-        acceptAllDevices: true,
+      window.bleManualStop = false;
+      bleSetBtn('搜尋中...', BLE_CLS_IDLE);
+      const device = await navigator.bluetooth.requestDevice({
+        filters: [{ services: [serviceUuid] }],   // 只列出有廣播此服務的裝置
         optionalServices: [serviceUuid]
       });
 
-      btn.innerText = '連線中...';
-      const server = await window.bleDevice.gatt.connect();
-      const service = await server.getPrimaryService(serviceUuid);
-      const stepCharacteristic = await service.getCharacteristic(stepCharUuid);
+      if (window.bleDevice) window.bleDevice.removeEventListener('gattserverdisconnected', bleOnDisconnected);
+      window.bleDevice = device;
+      device.addEventListener('gattserverdisconnected', bleOnDisconnected);
 
-      await stepCharacteristic.startNotifications();
-      stepCharacteristic.addEventListener('characteristicvaluechanged', handleStepUpdate);
-      
-      window.bleConnected = true;
-      demo = false;
+      bleSetBtn('連線中...', BLE_CLS_IDLE);
+      await bleSetup(device);
 
-      window.bleDevice.addEventListener('gattserverdisconnected', () => {
-         window.bleConnected = false;
-         btn.innerText = '+ 連接藍牙';
-         btn.className = 'bg-indigo-600 text-white text-xs font-bold px-3 py-2 rounded-xl active:scale-95';
-         if(window.toast) toast('🔴 裝置已斷線（今日步數已保留）');
-      });
-
-      btn.innerText = '🟢 已連線';
-      btn.className = 'bg-emerald-500 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-sm';
-      if(window.toast) toast('藍牙連接成功！（延續今日步數，每 5 秒同步）');
-      
+      bleSetBtn('🟢 已連線', BLE_CLS_ON);
+      toast('藍牙連接成功！（延續今日步數，每 5 秒同步）');
+      drawAct();
     } catch (error) {
       console.error('藍牙連接失敗:', error);
-      btn.innerText = '+ 連接藍牙';
-      if(window.toast) toast('失敗原因：' + (error.message || '已取消'));
+      bleSetBtn('+ 連接藍牙', BLE_CLS_IDLE);
+      toast(error.name === 'NotFoundError' ? '找不到裝置，或已取消選擇' : '失敗原因：' + (error.message || '未知錯誤'));
     }
   });
 }
@@ -926,19 +1002,9 @@ function handleStepUpdate(event) {
   
   drawAct();
   
-  if (!S.walk) {
-    S.walk = true;
-    if(typeof build === 'function') build();
-  }
-  
-  if (window.walkTimer) {
-      clearTimeout(window.walkTimer);
-  }
-  
-  window.walkTimer = setTimeout(() => { 
-      S.walk = false; 
-      if(typeof build === 'function') build(); 
-  }, 5500);
+  S.walk = true; // 不需重建公仔，upd() 每幀會依 S.walk 切換走路動畫
+  if (window.walkTimer) clearTimeout(window.walkTimer);
+  window.walkTimer = setTimeout(() => { S.walk = false; }, 5500);
 }
 
 const originalFetchAct = fetchAct;
