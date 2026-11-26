@@ -26,7 +26,7 @@ input[type=number],select{outline:none}
       <span class="text-4xl">⚠️</span>
     </div>
     <h2 class="text-3xl font-black text-slate-800 mb-2">偵測到跌倒！</h2>
-    <p class="text-sm font-bold text-slate-500 mb-6">系統偵測到超過 10g 的異常劇烈震動<br>請確認您的安全狀態。</p>
+    <p class="text-sm font-bold text-slate-500 mb-6">系統偵測到超過 4g 的異常劇烈撞擊<br>請確認您的安全狀態。</p>
     <button onclick="dismissFallAlert()" class="w-full bg-red-600 active:scale-95 text-white font-black py-4 rounded-xl shadow-md text-lg">我沒事，關閉警示</button>
   </div>
 </div>
@@ -883,6 +883,8 @@ async function bleSetup(device){
   window.bleReconnecting = false;
   bleRetryCount = 0;
   demo = false;
+  // 連上後主動讀一次目前步數，不必等韌體下一次 5 秒通知（失敗不影響連線）
+  try { handleStepValue(await stepCharacteristic.readValue(), true); } catch (e) { console.warn('初次讀取步數失敗', e); }
 }
 
 function bleOnDisconnected(){
@@ -979,12 +981,16 @@ if(btnConnect) {
 }
 
 function handleStepUpdate(event) {
-  const value = event.target.value;
+  handleStepValue(event.target.value, false);
+}
+
+// fromRead = true：連線後主動讀取的值，只更新步數，不觸發跌倒警示也不播走路動畫
+function handleStepValue(value, fromRead) {
   const decoder = new TextDecoder('utf-8');
   const rawString = decoder.decode(value).trim();
   
   if (rawString === "FALL") {
-    if(window.triggerFallAlert) triggerFallAlert();
+    if (!fromRead && window.triggerFallAlert) triggerFallAlert();
     return;
   }
 
@@ -1001,6 +1007,7 @@ function handleStepUpdate(event) {
   }
   
   drawAct();
+  if (fromRead) return;
   
   S.walk = true; // 不需重建公仔，upd() 每幀會依 S.walk 切換走路動畫
   if (window.walkTimer) clearTimeout(window.walkTimer);
