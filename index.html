@@ -150,15 +150,22 @@ input[type=number],select{outline:none}
         <div id="wifiOk" style="display:none" class="bg-emerald-50 p-3 rounded-2xl items-center gap-2 text-xs font-bold text-emerald-700">🔵 藍牙已連接</div>
         
         <div class="bg-gradient-to-br from-indigo-600 to-purple-600 text-white p-4 rounded-2xl">
-          <div class="flex justify-between items-start">
-            <div class="text-xs font-bold text-indigo-100">今日步數</div>
-          </div>
+          <div class="flex justify-between items-start"><div class="text-xs font-bold text-indigo-100">今日步數</div><button onclick="setGoal()" class="bg-white/20 active:scale-95 text-white text-[11px] font-bold px-2.5 py-1 rounded-lg">🎯 目標 <span id="aGoal">8,000</span> ✏️</button></div>
           <div class="flex items-end gap-2 mt-1">
             <span id="aSteps" class="text-4xl font-black">0</span>
             <span class="text-sm mb-1 text-indigo-100">步</span>
           </div>
           <div class="h-2 bg-white/25 rounded-full mt-2 overflow-hidden"><div id="aBar" class="h-full bg-orange-400 rounded-full" style="width:0%"></div></div>
-          <div class="flex justify-between text-[11px] mt-1.5 text-indigo-100"><span id="aPct"></span><span>🔥 約 <b id="aKcal">0</b> kcal</span></div>
+          <div class="text-[11px] mt-1.5 text-indigo-100"><span id="aPct"></span></div>
+          <div class="grid grid-cols-2 gap-2 mt-2 text-xs font-bold">
+            <div class="bg-white/15 rounded-xl px-3 py-2">🔥 約 <b id="aKcal">0</b> kcal</div>
+            <div class="bg-white/15 rounded-xl px-3 py-2">📏 約 <b id="aDist">0.00</b> km</div>
+          </div>
+          <div id="aDistNote" class="text-[10px] text-indigo-200 mt-1"></div>
+        </div>
+        <div class="space-y-2">
+          <div class="flex items-center justify-between"><h3 class="text-sm font-black">📊 近 7 天步數</h3><span class="text-[11px] text-slate-400">綠色＝達標</span></div>
+          <div id="actChart" class="bg-slate-50 p-4 rounded-2xl border border-slate-100"></div>
         </div>
       </div>
 
@@ -245,10 +252,12 @@ rectangle:['深蹲 + 彈力帶側走 4組','快走 (35分) + 側腹捲腹 4組',
 maintain:['快走或慢跑 30分','核心喚醒：死蟲式+鳥狗式+棒式 (20分)','瑜珈或皮拉提斯 (40分)','恢復：散步 6000步 + 肩頸伸展','彈力帶或輕啞鈴全身 (30分)','騎單車、健行或游泳 (45分)','休息：全身滾筒按摩']};
 const SHAPES=[['apple','🍎 蘋果型','脂肪集中於腹部與上半身'],['pear','🍐 梨型','脂肪集中於臀部與大腿'],['hourglass','⏳ 沙漏型','胸臀豐滿、腰線明顯'],['rectangle','📏 直筒型','上下身均勻、腰線較平']];
 
-const S={h:0,w:0,age:0,c:0,wa:0,hi:0,g:'female',shape:'apple',act:1.2,diet:'standard',rec:[],stepRec:[],shapeMode:'manual',color:COLORS[0],anim:false,walk:false,tab:'data'};
+const S={h:0,w:0,age:0,c:0,wa:0,hi:0,g:'female',shape:'apple',act:1.2,goal:8000,diet:'standard',rec:[],stepRec:[],shapeMode:'manual',color:COLORS[0],anim:false,walk:false,tab:'data'};
 try{const r=JSON.parse(localStorage.getItem('hrec')||'[]');if(Array.isArray(r))S.rec=r}catch(e){}
 try{const sr=JSON.parse(localStorage.getItem('hsteprec')||'[]');if(Array.isArray(sr))S.stepRec=sr}catch(e){}
-function save(){try{localStorage.setItem('hrec',JSON.stringify(S.rec));localStorage.setItem('hsteprec',JSON.stringify(S.stepRec))}catch(e){}}
+try{const g=+localStorage.getItem('hgoal');if(g>=500&&g<=100000)S.goal=Math.round(g)}catch(e){}
+function GOAL(){return S.goal||8000}
+function save(){try{localStorage.setItem('hrec',JSON.stringify(S.rec));localStorage.setItem('hsteprec',JSON.stringify(S.stepRec));localStorage.setItem('hgoal',String(S.goal))}catch(e){}}
 function toast(t){const e=$('toast');e.textContent=t;e.classList.remove('hidden');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.add('hidden'),2500)}
 
 // ---------- UI 組裝 ----------
@@ -446,6 +455,30 @@ function renderPlan(){
   $('diet').innerHTML=weekDiet().map((f,i)=>`<div class="flex gap-3 ${i<6?'border-b border-orange-100 pb-3':''}"><div class="font-black text-orange-400 w-8 shrink-0">W${DAYS[i]}</div><div class="text-sm font-bold text-slate-700 whitespace-pre-line">${menu(f)}</div></div>`).join('');
   const loss=b>23.5;$('wkTag').textContent=loss?'🔥 減脂菜單':'✨ 體態維持';
   $('work').innerHTML=(loss?WORK[S.shape]:WORK.maintain).map((x,i)=>`<div class="flex gap-3 ${i<6?'border-b border-blue-100 pb-3':''}"><div class="font-black text-blue-400 w-8 shrink-0">W${DAYS[i]}</div><div class="text-sm font-bold text-slate-700">${x}</div></div>`).join('')}
+function stepChartHTML(){
+  const SR=S.stepRec.slice(-7);
+  if(!SR.length){
+    return `<div class="h-40 flex flex-col items-center justify-center text-center"><div class="text-2xl mb-2">👟</div><div class="text-sm font-bold text-slate-700 mb-1">尚無每日步數紀錄</div><div class="text-xs text-slate-400">連接藍牙走路或點「記錄步數」開始追蹤</div></div>`;
+  }else{
+    const maxS=Math.max(GOAL(),...SR.map(r=>r.steps)),W=320,H=145,px=24,topY=24,botY=120,chartH=botY-topY;
+    const goalY=botY-(GOAL()/maxS)*chartH;
+    const slot=(W-2*px)/SR.length,barW=Math.min(26,slot*0.55);
+    const bars=SR.map((r,i)=>{
+      const cx=px+slot*(i+0.5);
+      const bh=Math.max(4,(r.steps/maxS)*chartH);
+      const by=botY-bh;
+      const fill=r.steps>=GOAL()?'#10b981':'#f97316';
+      return `<rect x="${cx-barW/2}" y="${by}" width="${barW}" height="${bh}" rx="6" fill="${fill}"/>`+
+             `<text x="${cx}" y="${by-6}" text-anchor="middle" font-size="9" font-weight="bold" fill="#334155">${r.steps.toLocaleString()}</text>`+
+             `<text x="${cx}" y="${H-6}" text-anchor="middle" font-size="9" fill="#94a3b8">${r.date}</text>`;
+    }).join('');
+    return `<svg viewBox="0 0 ${W} ${H}" class="w-full h-40 overflow-visible">`+
+      `<line x1="${px}" y1="${goalY}" x2="${W-px}" y2="${goalY}" stroke="#cbd5e1" stroke-dasharray="3 3"/>`+
+      `<text x="${W-px}" y="${goalY-4}" text-anchor="end" font-size="8" font-weight="bold" fill="#94a3b8">目標 ${GOAL().toLocaleString()}</text>`+
+      `<line x1="${px}" y1="${botY}" x2="${W-px}" y2="${botY}" stroke="#e2e8f0"/>`+
+      bars+`</svg>`;
+  }
+}
 function renderTrend(){
   const R=S.rec;
   if(R.length<2)$('chart').innerHTML=`<div class="h-40 flex flex-col items-center justify-center text-center"><div class="text-2xl mb-2">📈</div><div class="text-sm font-bold text-slate-700 mb-1">目前 ${R.length} 筆，還差 ${2-R.length} 筆即可繪製折線圖</div><div class="text-xs text-slate-400">調整體重後點「記錄體重」新增點位</div></div>`;
@@ -455,31 +488,10 @@ function renderTrend(){
     $('chart').innerHTML=`<svg viewBox="0 0 ${W} ${H}" class="w-full h-40 overflow-visible"><line x1="${px}" y1="${py}" x2="${W-px}" y2="${py}" stroke="#e2e8f0" stroke-dasharray="3 3"/><line x1="${px}" y1="${H-py}" x2="${W-px}" y2="${H-py}" stroke="#e2e8f0" stroke-dasharray="3 3"/><polyline fill="none" stroke="#4f46e5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" points="${P.map(p=>p.x+','+p.y).join(' ')}"/>${P.map((p,i)=>`<circle cx="${p.x}" cy="${p.y}" r="4.5" fill="#fff" stroke="#4f46e5" stroke-width="3"/><text x="${p.x}" y="${p.y-10}" text-anchor="middle" font-size="10" font-weight="bold" fill="#334155">${p.r.weight}</text>${(i==0||i==P.length-1||P.length<=5)?`<text x="${p.x}" y="${H-6}" text-anchor="middle" font-size="9" fill="#94a3b8">${p.r.time}</text>`:''}`).join('')}</svg>`}
   $('hist').innerHTML=R.length?`<h3 class="text-xs font-bold text-slate-400">歷史體重明細 (${R.length})</h3>`+[...R].reverse().map(r=>`<div class="bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-100 flex justify-between items-center"><span class="text-xs font-bold text-slate-500">${r.time}</span><span class="flex items-center gap-3"><b class="text-sm font-black">${r.weight} kg</b>${r.bmi>0?`<span class="text-[11px] font-bold px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-md">BMI ${r.bmi}</span>`:''}</span></div>`).join(''):'';
 
-  const SR=S.stepRec.slice(-7);
-  if(!SR.length){
-    $('stepChart').innerHTML=`<div class="h-40 flex flex-col items-center justify-center text-center"><div class="text-2xl mb-2">👟</div><div class="text-sm font-bold text-slate-700 mb-1">尚無每日步數紀錄</div><div class="text-xs text-slate-400">連接藍牙走路或點「記錄步數」開始追蹤</div></div>`;
-  }else{
-    const maxS=Math.max(8000,...SR.map(r=>r.steps)),W=320,H=145,px=24,topY=24,botY=120,chartH=botY-topY;
-    const goalY=botY-(8000/maxS)*chartH;
-    const slot=(W-2*px)/SR.length,barW=Math.min(26,slot*0.55);
-    const bars=SR.map((r,i)=>{
-      const cx=px+slot*(i+0.5);
-      const bh=Math.max(4,(r.steps/maxS)*chartH);
-      const by=botY-bh;
-      const fill=r.steps>=8000?'#10b981':'#f97316';
-      return `<rect x="${cx-barW/2}" y="${by}" width="${barW}" height="${bh}" rx="6" fill="${fill}"/>`+
-             `<text x="${cx}" y="${by-6}" text-anchor="middle" font-size="9" font-weight="bold" fill="#334155">${r.steps.toLocaleString()}</text>`+
-             `<text x="${cx}" y="${H-6}" text-anchor="middle" font-size="9" fill="#94a3b8">${r.date}</text>`;
-    }).join('');
-    $('stepChart').innerHTML=`<svg viewBox="0 0 ${W} ${H}" class="w-full h-40 overflow-visible">`+
-      `<line x1="${px}" y1="${goalY}" x2="${W-px}" y2="${goalY}" stroke="#cbd5e1" stroke-dasharray="3 3"/>`+
-      `<text x="${W-px}" y="${goalY-4}" text-anchor="end" font-size="8" font-weight="bold" fill="#94a3b8">目標 8,000</text>`+
-      `<line x1="${px}" y1="${botY}" x2="${W-px}" y2="${botY}" stroke="#e2e8f0"/>`+
-      bars+`</svg>`;
-  }
+  $('stepChart').innerHTML=stepChartHTML();
   $('stepHist').innerHTML=S.stepRec.length?`<h3 class="text-xs font-bold text-slate-400">每日步數明細 (${S.stepRec.length} 天)</h3>`+[...S.stepRec].reverse().map(r=>{
-    const pct=Math.min(100,Math.round(r.steps/8000*100));
-    const badge=r.steps>=8000
+    const pct=Math.min(100,Math.round(r.steps/GOAL()*100));
+    const badge=r.steps>=GOAL()
       ?`<span class="text-[11px] font-bold px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-md">達標 🎉</span>`
       :`<span class="text-[11px] font-bold px-2 py-0.5 bg-orange-50 text-orange-600 rounded-md">${pct}%</span>`;
     return `<div class="bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-100 flex justify-between items-center"><span class="text-xs font-bold text-slate-500">${r.date}</span><span class="flex items-center gap-2.5"><span class="text-[11px] text-slate-400">🔥 ${r.kcal||Math.round(r.steps*0.04)} kcal</span><b class="text-sm font-black">${r.steps.toLocaleString()} 步</b>${badge}</span></div>`;
@@ -645,7 +657,7 @@ async function cloudDel(){
   try{const r=await fetch(docUrl(U.id),{method:'DELETE'});if(!r.ok)throw 0;cloudOut();cmsg('✅ 雲端資料已刪除')}
   catch(e){cmsg('⚠️ 刪除失敗，請稍後再試')}}
 
-function snap(){return JSON.stringify({h:S.h,w:S.w,age:S.age,c:S.c,wa:S.wa,hi:S.hi,g:S.g,shape:S.shape,shapeMode:S.shapeMode,act:S.act,diet:S.diet,color:S.color,rec:S.rec,stepRec:S.stepRec})}
+function snap(){return JSON.stringify({h:S.h,w:S.w,age:S.age,c:S.c,wa:S.wa,hi:S.hi,g:S.g,shape:S.shape,shapeMode:S.shapeMode,act:S.act,diet:S.diet,color:S.color,rec:S.rec,stepRec:S.stepRec,goal:S.goal})}
 function applyData(d){
   ['h','w','age','c','wa','hi'].forEach(k=>{const v=+d[k];S[k]=isFinite(v)&&v>0&&v<1000?v:0});
   S.act=[1.2,1.375,1.55,1.725].includes(+d.act)?+d.act:1.2;
@@ -655,6 +667,7 @@ function applyData(d){
   S.diet=['standard','vegetarian','fasting168'].includes(d.diet)?d.diet:'standard';
   if(COLORS.includes(d.color))S.color=d.color;
   S.rec=(Array.isArray(d.rec)?d.rec:[]).slice(-200).filter(r=>r&&isFinite(+r.weight)).map(r=>({id:+r.id||Date.now(),time:String(r.time||'').replace(/[^0-9:]/g,'').slice(0,8),weight:+r.weight,bmi:+r.bmi||0}));
+  {const g=+d.goal;if(g>=500&&g<=100000)S.goal=Math.round(g)}
   const cloudSteps=(Array.isArray(d.stepRec)?d.stepRec:[]).slice(-30).filter(r=>r&&r.key&&isFinite(+r.steps)).map(r=>({key:String(r.key).slice(0,10),date:String(r.date||'').slice(0,5),steps:+r.steps||0,kcal:+r.kcal||Math.round((+r.steps||0)*0.04)}));
   
   const stepMap = new Map();
@@ -705,10 +718,13 @@ function drawAct(){
   const st0=n(a.steps)||0,ts=n(a.ts);
   const stale=!demo&&!!ts&&new Date(ts*1000).toDateString()!==new Date().toDateString();
   const st=stale?0:(st0 || (!demo ? STEP_STATE.todayTotal : 0));
-  const pct=Math.min(100,Math.round(st/8000*100));
+  const goal=GOAL(),pct=Math.min(100,Math.round(st/goal*100));
   $('aSteps').textContent=st.toLocaleString();
   $('aBar').style.width=pct+'%';
-  $('aPct').textContent='目標 8,000 步 · 已達成 '+pct+'%';
+  $('aPct').textContent='目標 '+goal.toLocaleString()+' 步 · 已達成 '+pct+'%';
+  $('aGoal').textContent=goal.toLocaleString();
+  {const stride=S.h>0?S.h*0.415:70;$('aDist').textContent=(st*stride/100000).toFixed(2);$('aDistNote').textContent=S.h>0?'':'（尚未輸入身高，以步幅 70 cm 估算）'}
+  $('actChart').innerHTML=stepChartHTML();
   $('aKcal').textContent=Math.round(st*0.04);
   
   let sub='尚未收到裝置資料';
@@ -727,6 +743,13 @@ function drawAct(){
   else if(wifiOff){wEl.className='bg-red-50 p-3 rounded-2xl flex items-center gap-2 text-xs font-bold text-red-600';wEl.textContent=bleReconnecting?'🟡 藍牙重新連線中…':'🔴 藍牙已斷線';wEl.style.display='flex'}
   else wEl.style.display='none';
   $('aDemo').textContent=demo?'改看真實資料':'看模擬資料'}
+function setGoal(){
+  const v=prompt('每日步數目標（500～100000）',GOAL());
+  if(v===null)return;
+  const g=Math.round(+String(v).replace(/,/g,''));
+  if(!(g>=500&&g<=100000)){toast('請輸入 500～100000 之間的步數');return}
+  S.goal=g;save();drawAct();if(S.tab==='trend')renderTrend();
+  toast('每日目標已設為 '+g.toLocaleString()+' 步')}
 async function fetchAct(){
   if(bleConnected)return; // 藍牙連線中以裝置資料為準，不讀雲端
   checkMidnightRollover();
